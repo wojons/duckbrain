@@ -1115,12 +1115,17 @@ before this was forgotten?") over REST, MCP and the CLI and get the same answer 
    Nothing else on a 44-row namespace is slow enough for a user to notice; filing it would devalue the
    real rows.
 
-Install leg: `bunker-qa.sh launch` on `bunker-mvp` (ONLINE, `/tmp` private, net mode *shared*) spawned
-agent `faf390f4` at 11:55:35Z; the collector synced 15 rows by this tick's closeout — `fresh-install OK`
-(6.7 s, pnpm 12.4.2), toolchain bootstrap OK, `lint N/A`, `tests FAIL` (§5), `docker_build OK`,
-`compose_config OK` — with the battery still RUNNING, so the agent was left intact rather than destroyed
-mid-battery. Isolation stays **UNVERIFIED** (host reports a shared network namespace) and the cells after
-`compose_config` are reported as not-yet-reached, not as passes.
+Install leg (**terminal**, battery COMPLETED, agent destroyed — `bunker info faf390f4` → `not_found`):
+`bunker-mvp` ONLINE, `/tmp` private, net mode *shared*; 24 evidence rows = `fresh-install OK` (6.7 s,
+pnpm 12.4.2), `toolchain-bootstrap OK ×10`, `lint N/A`, `tests FAIL` (§5), **`ci-pass FAIL`**,
+`docker_build OK`, `compose_config OK`, `docker-deploy SKIPPED` + `chaos-shutdown SKIPPED` (compose
+lifecycle safety gate), `ui-probe OK` (200 on :3111), `upgrade FAIL` (no `duckbrain@1.0.0` in the
+registry, E404), `chaos-corruption FAIL` (harness could not stage `.gitreins/gitreins.db`),
+`chaos-disconnect UNVERIFIED`, `chaos-resource INFO` (expected OOM under the 3 GiB cap),
+`chaos-errorpath INFO` (environment gap). The `ci-pass` red is the existing zero-diagnostic class: the
+step "Install from a clean store and smoke-test the CLI" fails in 11.2 s with no inner output
+(`ci.log`), which is what QA-DUCKBRAIN-035 owns — annotated there, not filed again. Isolation stays
+**UNVERIFIED** (host reports a shared network namespace).
 
 UNVERIFIED, named: `search` at production scale (would require rebuilding a live namespace's index);
 auth/token/role surfaces (this run used an explicit `--auth=none` loopback scratch daemon by design — that

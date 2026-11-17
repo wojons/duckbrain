@@ -121,16 +121,22 @@ a new finding and the fix would not change an agent's behaviour. Everything else
 
 ## Unverified
 
-- **Install leg** — `bunker-qa.sh launch` on `bunker-mvp` (ONLINE, `/tmp` private, net mode *shared*)
-  started agent `faf390f4` at 11:55:35Z. At this tick's closeout the collector had synced 15 rows:
-  `fresh-install OK` (6.7 s, pnpm 12.4.2), toolchain bootstrap OK ×N, `lint N/A`, **`tests FAIL`**,
-  `docker_build OK`, `compose_config OK` — with the battery still RUNNING, so the agent was left intact
-  instead of destroyed mid-battery. The `tests` red is one load-sensitive test
-  (`src/http/routes/realtime-fanout.test.ts:213`, heartbeat count expected ≥2 got 1; totals
-  `1 failed | 2502 passed | 1 skipped (2504)` at 389.02 s); the same file run solo on this box is 2/2
-  green, and the row that already owns this test — DOGFOOD-033 — was annotated with the newer counts
-  rather than duplicated. Isolation remains UNVERIFIED (host reports a shared network namespace), and
-  cells after `compose_config` are reported as not-yet-reached, never as passes.
+- **Install leg (terminal)** — `bunker-qa.sh launch|collect` on `bunker-mvp` (ONLINE, `/tmp` private, net
+  mode *shared*), agent `faf390f4`, battery COMPLETED and the agent destroyed (collect row OK;
+  `bunker info faf390f4` → `not_found`). 24 rows:
+  `fresh-install OK` (6.7 s, pnpm 12.4.2) · `toolchain-bootstrap OK ×10` · `lint N/A` ·
+  **`tests FAIL`** · **`ci-pass FAIL`** · `docker_build OK` · `compose_config OK` ·
+  `docker-deploy SKIPPED` (safety gate: compose lifecycle off when the controller is the live Hermes
+  host) · `chaos-shutdown SKIPPED` (same gate) · `ui-probe OK` (UI serves 200 on :3111) ·
+  `upgrade FAIL` (registry has no `duckbrain@1.0.0` — E404) · `chaos-corruption FAIL` (harness could not
+  copy `./qa-duckbrain/.gitreins/gitreins.db`) · `chaos-disconnect UNVERIFIED` · `chaos-resource INFO`
+  (OOM under the 3 GiB cap, expected) · `chaos-errorpath INFO` (environment gap).
+  Two reds worth naming: `tests` is the single load-sensitive heartbeat assertion (below), and
+  `ci-pass` fails at the step *"Install from a clean store and smoke-test the CLI"* in **11.2 s with no
+  inner output at all** (`ci.log` ends `❌ Failure - Main Install from a clean store and smoke-test the
+  CLI [11.235s]` then `Job failed`) — the same zero-diagnostic failure QA-DUCKBRAIN-035 already owns, so
+  it is annotated there rather than filed again. Isolation remains **UNVERIFIED** (host reports a shared
+  network namespace).
 - **`search` at production scale** — not re-proved (would require touching the live store's index).
 - **Auth surfaces** — this run used `--auth=none` on a loopback scratch daemon by design; token/role
   behaviour is owned by SEC-AUTHZ-001 and was not re-walked.
