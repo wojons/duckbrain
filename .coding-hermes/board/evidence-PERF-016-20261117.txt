@@ -1,0 +1,92 @@
+PERF-016 verification evidence — tick duckbrain-foreman-2026-11-17-10-47-14
+============================================================================
+Row: PERF-016 (P2) GET /users author set is load-dependent
+Implementation commit: 60a081cc0df9d039209eb0a744fa2f04c7e2220c
+  "perf(users): keep git-else-memory but never swap sources on a failed git scan"
+Pushed: origin/main = 60a081cc (git rev-list --count origin/main..HEAD = 0)
+
+WHY THIS TICK IS VERIFICATION-ONLY
+----------------------------------
+The previous tick (duckbrain-foreman-2026-11-17-00-56-21) dispatched the worker,
+and the worker committed 60a081cc in its worktree wt/PERF-016, which was merged
+into main locally. That tick ended without a board event (0 events carry its tick
+id), without a push, and without `gitreins task complete`; the row was left
+pending with worktree/branch recorded. This tick reconciles: verify, push, judge,
+close. No new implementation worker was dispatched — the diff is already landed.
+
+ACCEPTANCE CLAUSE 1 — served-set definition documented in the route docstring
+----------------------------------------------------------------------------
+src/http/routes/users.ts (file header, lines 1-24) states:
+  - git identities from every visible namespace whose git author scan SUCCEEDS;
+  - UNION memory-record authors from namespaces whose git repository is verified
+    empty or absent (empty history, not-a-git-repo, missing path);
+  - a namespace whose git scan FAILS operationally (timeout, non-zero exit, I/O
+    error) contributes NOTHING to that request.
+docs/api/http-api.md carries the same definition (part of the same commit).
+Verified in-tree: `sed -n '1,30p' src/http/routes/users.ts`.
+
+ACCEPTANCE CLAUSE 2 — a test pins it for a namespace with BOTH source kinds
+---------------------------------------------------------------------------
+New suite src/http/routes/authorAggregation-no-swap-perf016.test.ts (9 cases):
+a rejecting injected lookup (timeout / operational error) surfaces no memory
+author AND never calls the memory lookup; a resolved [] still falls back; the
+real git seam (mocked exec) maps "not a git repository" to fallback and a killed
+timeout / non-zero to an empty namespace with the
+`result=no-fallback-on-failure` diagnostic; plus the status-vocabulary table
+(only empty-success / no-repo / enoent allow fallback).
+Two existing suites were INVERTED to the new contract:
+authorAggregation-fallback-semantics.test.ts ("git scan throws" now expects [] and
+dbCalls == []) and users-perf014.test.ts (throwing namespace contributes no db-only
+authors).
+
+Measured this tick on the merged tree (60a081cc):
+  npx tsc -p tsconfig.build.json                     rc 0
+  npx vitest run src/http/routes/authorAggregation-no-swap-perf016.test.ts \
+      src/http/routes/authorAggregation-fallback-semantics.test.ts \
+      src/http/routes/users-perf014.test.ts          3 files / 16 tests passed
+
+ACCEPTANCE CLAUSE 3 — identical served set across three consecutive requests
+---------------------------------------------------------------------------
+Store: /home/kara/.duckbrain-live/namespaces — 288 namespace directories
+(counted this tick: ls -d .../namespaces/*/ | wc -l = 288)
+Instance: scratch build of the merged tree, port 3101, --auth=none,
+          DUCKBRAIN_HOME_ROOT=/home/kara/.duckbrain-live
+          (node bin/duckbrain.js http --port 3101 --auth=none)
+Probe: three consecutive GET /users, 1s apart; concurrent `git log --all`
+       processes sampled from /proc every 40ms while each request was in flight.
+
+  request  http  latency_s  identities  peak concurrent git log --all  polls
+  1        200   1.435      21          4                             26
+  2        200   1.419      21          5                             25
+  3        200   1.375      21          5                             24
+
+  identity sets identical across all three: YES (set equality, not just counts)
+  loadavg at measurement: 15.81 17.25 21.53 (1m 5m 15m), 16 cores
+
+Served set (21 identities, request 1, copy of the response body):
+  Alexis Okuwa, Anonymous, Bane, CI Test, DuckBrain, EduOS Foreman, GitReins,
+  Hermes Agent, Hermes Foreman, Kara, Kara Hermes, KaraHermes, Stand-In PM,
+  Test, deepseek-v4-pro @ deepseek-foreman, hermes, kara, qa-cron, stand-in-pm,
+  totalwindupflightsystems, totalwindupflightsystems@gmail.com
+
+Interpretation: at a HIGHER loadavg than the row's control run (15.81 vs the
+control tick's load), the served set is byte-identical across three requests and
+is a superset of the 16 git ground-truth identities measured in the PERF-015
+closeout. A failing scan no longer substitutes memory authors, which was the
+mechanism that produced the recorded drift (20, 45, 72, 73, 74, 77 identities).
+
+OPEN OWNER DECISION (carried, not closed by this row)
+-----------------------------------------------------
+Which author set GET /users owes remains an owner decision:
+  (a) git identities only;
+  (b) git UNION memory-record authors for every namespace (needs a persistent
+      index; cold build measured at 3m00s of partition I/O in the PERF-015 tick);
+  (c) current semantics kept, flakiness removed — what this row implements.
+The row's acceptance was satisfied under (c); (a)/(b) would change the served
+set and must not be implemented without the owner decision.
+
+ARTIFACT PROVENANCE
+-------------------
+Generated by tick duckbrain-foreman-2026-11-17-10-47-14 from live probes on the
+merged tree; raw response bodies and sampler output kept in
+/home/kara/.hermes/cache/scratch/perf016-verify/measure.json (scratch, not tracked).
