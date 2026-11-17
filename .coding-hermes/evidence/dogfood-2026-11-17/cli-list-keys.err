@@ -1,0 +1,5 @@
+[duckbrain] Cleared stale DuckDB connections
+[list_keys] Tool called with input: {"namespace":"alpha","limit":50,"offset":0}
+[list_keys] Validated input: { prefix: '/', maxDepth: 3, limit: 50, offset: 0, namespace: 'alpha' }
+(node:1579624) ExperimentalWarning: SQLite is an experimental feature and might change at any time
+(Use `node --trace-warnings ...` to show where the warning was created)

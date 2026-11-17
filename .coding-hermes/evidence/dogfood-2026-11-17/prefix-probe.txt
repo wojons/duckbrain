@@ -1,0 +1,6 @@
+roster-space           rc=0  header=Found 44 memories:           distinct_keys=44
+roster-eq              rc=0  header=Found 44 memories:           distinct_keys=44
+roster-default         rc=0  header=Found 10 memories:           distinct_keys=10
+sprint-dec             rc=0  header=Found 44 memories:           distinct_keys=44
+nonexistent            rc=0  header=Found 44 memories:           distinct_keys=44
+key-exact              rc=0  header=Found 1 memories:            distinct_keys=1

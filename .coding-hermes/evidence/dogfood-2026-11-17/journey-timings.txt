@@ -1,0 +1,16 @@
+list-keys                    rc=0   wall=0.40    out_lines=19   err_lines=5
+recall-prefix                rc=0   wall=0.43    out_lines=618  err_lines=5
+recall-key                   rc=0   wall=0.43    out_lines=14   err_lines=10
+recall-attr                  rc=0   wall=0.41    out_lines=151  err_lines=10
+recall-contains              rc=0   wall=0.63    out_lines=647  err_lines=5
+recall-domain                rc=0   wall=0.41    out_lines=97   err_lines=5
+search-warm                  rc=0   wall=0.39    out_lines=31   err_lines=3
+search-2                     rc=0   wall=0.46    out_lines=13   err_lines=3
+search-all                   rc=0   wall=0.43    out_lines=7    err_lines=3
+query-count                  rc=0   wall=0.42    out_lines=3    err_lines=4
+query-group                  rc=0   wall=0.36    out_lines=8    err_lines=4
+query-tmpl-pps               rc=0   wall=0.39    out_lines=2    err_lines=4
+query-tmpl-cost              rc=0   wall=0.40    out_lines=2    err_lines=4
+query-tmpl-inc               rc=0   wall=0.38    out_lines=2    err_lines=4
+status                       rc=0   wall=0.40    out_lines=5    err_lines=3
+---- journey done ----

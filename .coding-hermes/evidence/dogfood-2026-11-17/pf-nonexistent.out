@@ -1,0 +1,618 @@
+Found 44 memories:
+{
+  "id": "9aba72f2-e855-4794-b77f-1b25722ca37c",
+  "key": "/handoffs/shift-3",
+  "domain": "message",
+  "timestamp": "2026-11-17T11:55:33.150Z",
+  "author": "totalwindupflightsystems@gmail.com",
+  "action": "add",
+  "embedding_text": "Shift handover 3: zebra alerting tuned, flaky test 3 quarantined.",
+  "attributes": {
+    "shift": 3,
+    "owner": "agent-0"
+  }
+}
+{
+  "id": "1ad42ccc-997a-4e06-8c87-075592294eea",
+  "key": "/handoffs/shift-2",
+  "domain": "message",
+  "timestamp": "2026-11-17T11:55:33.135Z",
+  "author": "totalwindupflightsystems@gmail.com",
+  "action": "add",
+  "embedding_text": "Shift handover 2: zebra alerting tuned, flaky test 2 quarantined.",
+  "attributes": {
+    "shift": 2,
+    "owner": "agent-0"
+  }
+}
+{
+  "id": "fd6aa663-b0d2-41d3-9950-ddf2f1805346",
+  "key": "/handoffs/shift-1",
+  "domain": "message",
+  "timestamp": "2026-11-17T11:55:33.119Z",
+  "author": "totalwindupflightsystems@gmail.com",
+  "action": "add",
+  "embedding_text": "Shift handover 1: zebra alerting tuned, flaky test 1 quarantined.",
+  "attributes": {
+    "shift": 1,
+    "owner": "agent-0"
+  }
+}
+{
+  "id": "67714cc6-63d9-450e-a986-5ed36b567699",
+  "key": "/handoffs/shift-0",
+  "domain": "message",
+  "timestamp": "2026-11-17T11:55:33.104Z",
+  "author": "totalwindupflightsystems@gmail.com",
+  "action": "add",
+  "embedding_text": "Shift handover 0: zebra alerting tuned, flaky test 0 quarantined.",
+  "attributes": {
+    "shift": 0,
+    "owner": "agent-0"
+  }
+}
+{
+  "id": "bcb77c79-f29f-4f93-a3dd-e8012966b5f1",
+  "key": "/sprint/decisions/standup-b",
+  "domain": "concept",
+  "timestamp": "2026-11-17T11:55:33.090Z",
+  "author": "totalwindupflightsystems@gmail.com",
+  "action": "add",
+  "embedding_text": "Standup happens at 09:15 UTC every weekday in the #sprint channel.",
+  "attributes": {
+    "kind": "process"
+  }
+}
+{
+  "id": "6ceff70f-33b2-4137-add1-8b3043269585",
+  "key": "/sprint/decisions/standup-a",
+  "domain": "concept",
+  "timestamp": "2026-11-17T11:55:33.075Z",
+  "author": "totalwindupflightsystems@gmail.com",
+  "action": "add",
+  "embedding_text": "Standup happens at 09:15 UTC every weekday in the #sprint channel.",
+  "attributes": {
+    "kind": "process"
+  }
+}
+{
+  "id": "bed8276d-f850-4551-8afe-e767fd1e15c0",
+  "key": "/infra/configs/new-db-host",
+  "domain": "config",
+  "timestamp": "2026-11-17T11:55:33.060Z",
+  "author": "totalwindupflightsystems@gmail.com",
+  "action": "add",
+  "embedding_text": "Postgres primary moved to db-new.internal:6432 after cutover.",
+  "attributes": {
+    "valid_from": "2027-01-01T00:00:00Z",
+    "confidence": 0.9
+  }
+}
+{
+  "id": "7b7f27a0-96bf-48c3-b382-a05ab892f0a3",
+  "key": "/infra/configs/old-db-host",
+  "domain": "config",
+  "timestamp": "2026-11-17T11:55:33.044Z",
+  "author": "totalwindupflightsystems@gmail.com",
+  "action": "add",
+  "embedding_text": "Legacy Postgres primary was db-old.internal:5432 (retired).",
+  "attributes": {
+    "valid_until": "2026-10-01T00:00:00Z",
+    "confidence": 0.9
+  }
+}
+{
+  "id": "d3f8bcfd-3f2a-4d7e-b54b-3137846de728",
+  "key": "/team/roster/oncall",
+  "domain": "person",
+  "timestamp": "2026-11-17T11:55:33.031Z",
+  "author": "totalwindupflightsystems@gmail.com",
+  "action": "add",
+  "embedding_text": "On-call rotation runs weekly, handover on Monday 09:00 UTC.",
+  "attributes": {
+    "tags": [
+      "oncall"
+    ],
+    "meta": {
+      "level": 2,
+      "active": true
+    }
+  }
+}
+{
+  "id": "b4834ad6-e357-415c-bbaa-a5598f708f27",
+  "key": "/team/roster/lead",
+  "domain": "person",
+  "timestamp": "2026-11-17T11:55:33.017Z",
+  "author": "totalwindupflightsystems@gmail.com",
+  "action": "add",
+  "embedding_text": "Team lead is responsible for the deploy pipeline and sprint reviews.",
+  "attributes": {
+    "tags": [
+      "lead",
+      "deploy",
+      "review"
+    ],
+    "meta": {
+      "level": 3,
+      "active": true
+    },
+    "since": "2026-01-05"
+  }
+}
+{
+  "id": "60634bff-2189-466d-8d16-fb3a4e4553ed",
+  "key": "/infra/configs/33",
+  "domain": "message",
+  "timestamp": "2026-11-17T11:55:33.004Z",
+  "author": "totalwindupflightsystems@gmail.com",
+  "action": "add",
+  "embedding_text": "Sprint memory 33: the message note recorded that deploy pipeline 33 was migrated after the Postgres cutover and the on-call rotation changed to team-1.",
+  "attributes": {
+    "ticket": "SPR-133",
+    "owner": "agent-3",
+    "confidence": 0.8
+  }
+}
+{
+  "id": "b1164944-631a-45ad-944a-86855f866944",
+  "key": "/sprint/incidents/32",
+  "domain": "concept",
+  "timestamp": "2026-11-17T11:55:32.990Z",
+  "author": "totalwindupflightsystems@gmail.com",
+  "action": "add",
+  "embedding_text": "Sprint memory 32: the concept note recorded that deploy pipeline 32 was migrated after the Postgres cutover and the on-call rotation changed to team-0.",
+  "attributes": {
+    "ticket": "SPR-132",
+    "owner": "agent-2",
+    "confidence": 0.7
+  }
+}
+{
+  "id": "25526350-b32e-4fdf-942b-93d0187521da",
+  "key": "/sprint/decisions/31",
+  "domain": "event",
+  "timestamp": "2026-11-17T11:55:32.974Z",
+  "author": "totalwindupflightsystems@gmail.com",
+  "action": "add",
+  "embedding_text": "Sprint memory 31: the event note recorded that deploy pipeline 31 was migrated after the Postgres cutover and the on-call rotation changed to team-3.",
+  "attributes": {
+    "ticket": "SPR-131",
+    "owner": "agent-1",
+    "confidence": 0.6
+  }
+}
+{
+  "id": "7f01a052-67f5-45d0-b37c-2c85a2034487",
+  "key": "/team/roster/30",
+  "domain": "person",
+  "timestamp": "2026-11-17T11:55:32.960Z",
+  "author": "totalwindupflightsystems@gmail.com",
+  "action": "add",
+  "embedding_text": "Sprint memory 30: the person note recorded that deploy pipeline 30 was migrated after the Postgres cutover and the on-call rotation changed to team-2.",
+  "attributes": {
+    "ticket": "SPR-130",
+    "owner": "agent-0",
+    "confidence": 0.5
+  }
+}
+{
+  "id": "9ea11dfb-3a30-494d-9474-226e5f5510c7",
+  "key": "/handoffs/29",
+  "domain": "raw_note",
+  "timestamp": "2026-11-17T11:55:32.946Z",
+  "author": "totalwindupflightsystems@gmail.com",
+  "action": "add",
+  "embedding_text": "Sprint memory 29: the raw_note note recorded that deploy pipeline 29 was migrated after the Postgres cutover and the on-call rotation changed to team-1.",
+  "attributes": {
+    "ticket": "SPR-129",
+    "owner": "agent-4",
+    "confidence": 0.9
+  }
+}
+{
+  "id": "c0840e4e-6ac2-49e3-8a12-be9b43e4fbd6",
+  "key": "/infra/configs/28",
+  "domain": "config",
+  "timestamp": "2026-11-17T11:55:32.932Z",
+  "author": "totalwindupflightsystems@gmail.com",
+  "action": "add",
+  "embedding_text": "Sprint memory 28: the config note recorded that deploy pipeline 28 was migrated after the Postgres cutover and the on-call rotation changed to team-0.",
+  "attributes": {
+    "ticket": "SPR-128",
+    "owner": "agent-3",
+    "confidence": 0.8
+  }
+}
+{
+  "id": "50fe4655-656c-4bd5-a7f3-b0452ae166ec",
+  "key": "/sprint/incidents/27",
+  "domain": "message",
+  "timestamp": "2026-11-17T11:55:32.917Z",
+  "author": "totalwindupflightsystems@gmail.com",
+  "action": "add",
+  "embedding_text": "Sprint memory 27: the message note recorded that deploy pipeline 27 was migrated after the Postgres cutover and the on-call rotation changed to team-3.",
+  "attributes": {
+    "ticket": "SPR-127",
+    "owner": "agent-2",
+    "confidence": 0.7
+  }
+}
+{
+  "id": "407120c7-5d63-41f9-b570-eaf0321c5837",
+  "key": "/sprint/decisions/26",
+  "domain": "concept",
+  "timestamp": "2026-11-17T11:55:32.904Z",
+  "author": "totalwindupflightsystems@gmail.com",
+  "action": "add",
+  "embedding_text": "Sprint memory 26: the concept note recorded that deploy pipeline 26 was migrated after the Postgres cutover and the on-call rotation changed to team-2.",
+  "attributes": {
+    "ticket": "SPR-126",
+    "owner": "agent-1",
+    "confidence": 0.6
+  }
+}
+{
+  "id": "445817ed-5ca9-4b33-96f6-a833d91d0241",
+  "key": "/team/roster/25",
+  "domain": "event",
+  "timestamp": "2026-11-17T11:55:32.891Z",
+  "author": "totalwindupflightsystems@gmail.com",
+  "action": "add",
+  "embedding_text": "Sprint memory 25: the event note recorded that deploy pipeline 25 was migrated after the Postgres cutover and the on-call rotation changed to team-1.",
+  "attributes": {
+    "ticket": "SPR-125",
+    "owner": "agent-0",
+    "confidence": 0.5
+  }
+}
+{
+  "id": "1f68aaaa-f0e5-4e91-9add-bf3d4926a7e7",
+  "key": "/handoffs/24",
+  "domain": "person",
+  "timestamp": "2026-11-17T11:55:32.877Z",
+  "author": "totalwindupflightsystems@gmail.com",
+  "action": "add",
+  "embedding_text": "Sprint memory 24: the person note recorded that deploy pipeline 24 was migrated after the Postgres cutover and the on-call rotation changed to team-0.",
+  "attributes": {
+    "ticket": "SPR-124",
+    "owner": "agent-4",
+    "confidence": 0.9
+  }
+}
+{
+  "id": "c4e83ad2-138c-41ae-b719-d99ff08bcb75",
+  "key": "/infra/configs/23",
+  "domain": "raw_note",
+  "timestamp": "2026-11-17T11:55:32.863Z",
+  "author": "totalwindupflightsystems@gmail.com",
+  "action": "add",
+  "embedding_text": "Sprint memory 23: the raw_note note recorded that deploy pipeline 23 was migrated after the Postgres cutover and the on-call rotation changed to team-3.",
+  "attributes": {
+    "ticket": "SPR-123",
+    "owner": "agent-3",
+    "confidence": 0.8
+  }
+}
+{
+  "id": "47a960e1-3060-42c1-85e1-8f6e8baa6bd2",
+  "key": "/sprint/incidents/22",
+  "domain": "config",
+  "timestamp": "2026-11-17T11:55:32.850Z",
+  "author": "totalwindupflightsystems@gmail.com",
+  "action": "add",
+  "embedding_text": "Sprint memory 22: the config note recorded that deploy pipeline 22 was migrated after the Postgres cutover and the on-call rotation changed to team-2.",
+  "attributes": {
+    "ticket": "SPR-122",
+    "owner": "agent-2",
+    "confidence": 0.7
+  }
+}
+{
+  "id": "47034326-f4a7-4ced-a6ef-426ccc6aa165",
+  "key": "/sprint/decisions/21",
+  "domain": "message",
+  "timestamp": "2026-11-17T11:55:32.834Z",
+  "author": "totalwindupflightsystems@gmail.com",
+  "action": "add",
+  "embedding_text": "Sprint memory 21: the message note recorded that deploy pipeline 21 was migrated after the Postgres cutover and the on-call rotation changed to team-1.",
+  "attributes": {
+    "ticket": "SPR-121",
+    "owner": "agent-1",
+    "confidence": 0.6
+  }
+}
+{
+  "id": "0ea63d3d-8290-4a6e-80ed-abe10e964b24",
+  "key": "/team/roster/20",
+  "domain": "concept",
+  "timestamp": "2026-11-17T11:55:32.818Z",
+  "author": "totalwindupflightsystems@gmail.com",
+  "action": "add",
+  "embedding_text": "Sprint memory 20: the concept note recorded that deploy pipeline 20 was migrated after the Postgres cutover and the on-call rotation changed to team-0.",
+  "attributes": {
+    "ticket": "SPR-120",
+    "owner": "agent-0",
+    "confidence": 0.5
+  }
+}
+{
+  "id": "200e4fc3-2fea-475f-896d-0c26e2162c6a",
+  "key": "/handoffs/19",
+  "domain": "event",
+  "timestamp": "2026-11-17T11:55:32.800Z",
+  "author": "totalwindupflightsystems@gmail.com",
+  "action": "add",
+  "embedding_text": "Sprint memory 19: the event note recorded that deploy pipeline 19 was migrated after the Postgres cutover and the on-call rotation changed to team-3.",
+  "attributes": {
+    "ticket": "SPR-119",
+    "owner": "agent-4",
+    "confidence": 0.9
+  }
+}
+{
+  "id": "11cb8154-7c7f-4c62-9de2-df9c4f16fa0a",
+  "key": "/infra/configs/18",
+  "domain": "person",
+  "timestamp": "2026-11-17T11:55:32.785Z",
+  "author": "totalwindupflightsystems@gmail.com",
+  "action": "add",
+  "embedding_text": "Sprint memory 18: the person note recorded that deploy pipeline 18 was migrated after the Postgres cutover and the on-call rotation changed to team-2.",
+  "attributes": {
+    "ticket": "SPR-118",
+    "owner": "agent-3",
+    "confidence": 0.8
+  }
+}
+{
+  "id": "4540d5cd-f0a2-4cf7-903a-413c2619aded",
+  "key": "/sprint/incidents/17",
+  "domain": "raw_note",
+  "timestamp": "2026-11-17T11:55:32.770Z",
+  "author": "totalwindupflightsystems@gmail.com",
+  "action": "add",
+  "embedding_text": "Sprint memory 17: the raw_note note recorded that deploy pipeline 17 was migrated after the Postgres cutover and the on-call rotation changed to team-1.",
+  "attributes": {
+    "ticket": "SPR-117",
+    "owner": "agent-2",
+    "confidence": 0.7
+  }
+}
+{
+  "id": "e543bc16-4a37-45ed-8418-1324d3dc9af9",
+  "key": "/sprint/decisions/16",
+  "domain": "config",
+  "timestamp": "2026-11-17T11:55:32.755Z",
+  "author": "totalwindupflightsystems@gmail.com",
+  "action": "add",
+  "embedding_text": "Sprint memory 16: the config note recorded that deploy pipeline 16 was migrated after the Postgres cutover and the on-call rotation changed to team-0.",
+  "attributes": {
+    "ticket": "SPR-116",
+    "owner": "agent-1",
+    "confidence": 0.6
+  }
+}
+{
+  "id": "b7a869a7-f03b-44f4-85e6-c24d3d9cc340",
+  "key": "/team/roster/15",
+  "domain": "message",
+  "timestamp": "2026-11-17T11:55:32.742Z",
+  "author": "totalwindupflightsystems@gmail.com",
+  "action": "add",
+  "embedding_text": "Sprint memory 15: the message note recorded that deploy pipeline 15 was migrated after the Postgres cutover and the on-call rotation changed to team-3.",
+  "attributes": {
+    "ticket": "SPR-115",
+    "owner": "agent-0",
+    "confidence": 0.5
+  }
+}
+{
+  "id": "c00cd780-f8d3-4b7c-b64e-1dde78d1a6f0",
+  "key": "/handoffs/14",
+  "domain": "concept",
+  "timestamp": "2026-11-17T11:55:32.730Z",
+  "author": "totalwindupflightsystems@gmail.com",
+  "action": "add",
+  "embedding_text": "Sprint memory 14: the concept note recorded that deploy pipeline 14 was migrated after the Postgres cutover and the on-call rotation changed to team-2.",
+  "attributes": {
+    "ticket": "SPR-114",
+    "owner": "agent-4",
+    "confidence": 0.9
+  }
+}
+{
+  "id": "002258af-3ac8-4cdc-92dd-49ac8183cdd0",
+  "key": "/infra/configs/13",
+  "domain": "event",
+  "timestamp": "2026-11-17T11:55:32.715Z",
+  "author": "totalwindupflightsystems@gmail.com",
+  "action": "add",
+  "embedding_text": "Sprint memory 13: the event note recorded that deploy pipeline 13 was migrated after the Postgres cutover and the on-call rotation changed to team-1.",
+  "attributes": {
+    "ticket": "SPR-113",
+    "owner": "agent-3",
+    "confidence": 0.8
+  }
+}
+{
+  "id": "b0f14539-2644-4d31-8538-e9d90493d6a6",
+  "key": "/sprint/incidents/12",
+  "domain": "person",
+  "timestamp": "2026-11-17T11:55:32.701Z",
+  "author": "totalwindupflightsystems@gmail.com",
+  "action": "add",
+  "embedding_text": "Sprint memory 12: the person note recorded that deploy pipeline 12 was migrated after the Postgres cutover and the on-call rotation changed to team-0.",
+  "attributes": {
+    "ticket": "SPR-112",
+    "owner": "agent-2",
+    "confidence": 0.7
+  }
+}
+{
+  "id": "71c3c845-f008-4e8e-9364-d58230d53279",
+  "key": "/sprint/decisions/11",
+  "domain": "raw_note",
+  "timestamp": "2026-11-17T11:55:32.689Z",
+  "author": "totalwindupflightsystems@gmail.com",
+  "action": "add",
+  "embedding_text": "Sprint memory 11: the raw_note note recorded that deploy pipeline 11 was migrated after the Postgres cutover and the on-call rotation changed to team-3.",
+  "attributes": {
+    "ticket": "SPR-111",
+    "owner": "agent-1",
+    "confidence": 0.6
+  }
+}
+{
+  "id": "055fe418-303c-4be2-86f2-2e842922cfec",
+  "key": "/team/roster/10",
+  "domain": "config",
+  "timestamp": "2026-11-17T11:55:32.677Z",
+  "author": "totalwindupflightsystems@gmail.com",
+  "action": "add",
+  "embedding_text": "Sprint memory 10: the config note recorded that deploy pipeline 10 was migrated after the Postgres cutover and the on-call rotation changed to team-2.",
+  "attributes": {
+    "ticket": "SPR-110",
+    "owner": "agent-0",
+    "confidence": 0.5
+  }
+}
+{
+  "id": "989eb9b6-0a03-4d97-9c03-1e1f0914895e",
+  "key": "/handoffs/09",
+  "domain": "message",
+  "timestamp": "2026-11-17T11:55:32.664Z",
+  "author": "totalwindupflightsystems@gmail.com",
+  "action": "add",
+  "embedding_text": "Sprint memory 9: the message note recorded that deploy pipeline 9 was migrated after the Postgres cutover and the on-call rotation changed to team-1.",
+  "attributes": {
+    "ticket": "SPR-109",
+    "owner": "agent-4",
+    "confidence": 0.9
+  }
+}
+{
+  "id": "35785131-44fb-4b9c-94f2-058fd269a33e",
+  "key": "/infra/configs/08",
+  "domain": "concept",
+  "timestamp": "2026-11-17T11:55:32.648Z",
+  "author": "totalwindupflightsystems@gmail.com",
+  "action": "add",
+  "embedding_text": "Sprint memory 8: the concept note recorded that deploy pipeline 8 was migrated after the Postgres cutover and the on-call rotation changed to team-0.",
+  "attributes": {
+    "ticket": "SPR-108",
+    "owner": "agent-3",
+    "confidence": 0.8
+  }
+}
+{
+  "id": "be62a3b5-aa48-4dbf-a959-c23f906ef9b2",
+  "key": "/sprint/incidents/07",
+  "domain": "event",
+  "timestamp": "2026-11-17T11:55:32.633Z",
+  "author": "totalwindupflightsystems@gmail.com",
+  "action": "add",
+  "embedding_text": "Sprint memory 7: the event note recorded that deploy pipeline 7 was migrated after the Postgres cutover and the on-call rotation changed to team-3.",
+  "attributes": {
+    "ticket": "SPR-107",
+    "owner": "agent-2",
+    "confidence": 0.7
+  }
+}
+{
+  "id": "3c1c70ea-5b92-4121-89d2-8b6ce10fc932",
+  "key": "/sprint/decisions/06",
+  "domain": "person",
+  "timestamp": "2026-11-17T11:55:32.608Z",
+  "author": "totalwindupflightsystems@gmail.com",
+  "action": "add",
+  "embedding_text": "Sprint memory 6: the person note recorded that deploy pipeline 6 was migrated after the Postgres cutover and the on-call rotation changed to team-2.",
+  "attributes": {
+    "ticket": "SPR-106",
+    "owner": "agent-1",
+    "confidence": 0.6
+  }
+}
+{
+  "id": "1addeee7-a8f0-4235-a8a1-b52ecaa586ef",
+  "key": "/team/roster/05",
+  "domain": "raw_note",
+  "timestamp": "2026-11-17T11:55:32.586Z",
+  "author": "totalwindupflightsystems@gmail.com",
+  "action": "add",
+  "embedding_text": "Sprint memory 5: the raw_note note recorded that deploy pipeline 5 was migrated after the Postgres cutover and the on-call rotation changed to team-1.",
+  "attributes": {
+    "ticket": "SPR-105",
+    "owner": "agent-0",
+    "confidence": 0.5
+  }
+}
+{
+  "id": "d1e04edb-37a3-4007-8cae-9ca1ef5f23c0",
+  "key": "/handoffs/04",
+  "domain": "config",
+  "timestamp": "2026-11-17T11:55:32.568Z",
+  "author": "totalwindupflightsystems@gmail.com",
+  "action": "add",
+  "embedding_text": "Sprint memory 4: the config note recorded that deploy pipeline 4 was migrated after the Postgres cutover and the on-call rotation changed to team-0.",
+  "attributes": {
+    "ticket": "SPR-104",
+    "owner": "agent-4",
+    "confidence": 0.9
+  }
+}
+{
+  "id": "3e26e4af-715a-4a8f-9fec-e2434eb24d8a",
+  "key": "/infra/configs/03",
+  "domain": "message",
+  "timestamp": "2026-11-17T11:55:32.550Z",
+  "author": "totalwindupflightsystems@gmail.com",
+  "action": "add",
+  "embedding_text": "Sprint memory 3: the message note recorded that deploy pipeline 3 was migrated after the Postgres cutover and the on-call rotation changed to team-3.",
+  "attributes": {
+    "ticket": "SPR-103",
+    "owner": "agent-3",
+    "confidence": 0.8
+  }
+}
+{
+  "id": "2e777b92-d1e6-40cb-8ab6-52cde4024e92",
+  "key": "/sprint/incidents/02",
+  "domain": "concept",
+  "timestamp": "2026-11-17T11:55:32.533Z",
+  "author": "totalwindupflightsystems@gmail.com",
+  "action": "add",
+  "embedding_text": "Sprint memory 2: the concept note recorded that deploy pipeline 2 was migrated after the Postgres cutover and the on-call rotation changed to team-2.",
+  "attributes": {
+    "ticket": "SPR-102",
+    "owner": "agent-2",
+    "confidence": 0.7
+  }
+}
+{
+  "id": "003f1df1-8cdb-410f-a7a5-7c945dd8a618",
+  "key": "/sprint/decisions/01",
+  "domain": "event",
+  "timestamp": "2026-11-17T11:55:32.508Z",
+  "author": "totalwindupflightsystems@gmail.com",
+  "action": "add",
+  "embedding_text": "Sprint memory 1: the event note recorded that deploy pipeline 1 was migrated after the Postgres cutover and the on-call rotation changed to team-1.",
+  "attributes": {
+    "ticket": "SPR-101",
+    "owner": "agent-1",
+    "confidence": 0.6
+  }
+}
+{
+  "id": "e51726d1-4d40-4cb8-9fa1-4e21d5d25266",
+  "key": "/team/roster/00",
+  "domain": "person",
+  "timestamp": "2026-11-17T11:55:32.480Z",
+  "author": "totalwindupflightsystems@gmail.com",
+  "action": "add",
+  "embedding_text": "Sprint memory 0: the person note recorded that deploy pipeline 0 was migrated after the Postgres cutover and the on-call rotation changed to team-0.",
+  "attributes": {
+    "ticket": "SPR-100",
+    "owner": "agent-0",
+    "confidence": 0.5
+  }
+}

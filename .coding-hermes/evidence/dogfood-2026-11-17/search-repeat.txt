@@ -1,0 +1,8 @@
+run=1 rc=0   ms=443    header=Found 10 memories (34 total matches):         
+run=2 rc=0   ms=656    header=Found 10 memories (34 total matches):         
+run=3 rc=0   ms=469    header=Found 10 memories (34 total matches):         
+run=4 rc=0   ms=431    header=Found 10 memories (34 total matches):         
+run=5 rc=0   ms=452    header=Found 10 memories (34 total matches):         
+run=6 rc=0   ms=414    header=Found 10 memories (34 total matches):         
+run=7 rc=0   ms=422    header=Found 10 memories (34 total matches):         
+run=8 rc=0   ms=398    header=Found 10 memories (34 total matches):         

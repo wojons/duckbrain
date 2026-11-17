@@ -1,0 +1,23 @@
+     [33m[2m✓[22m[39m unknown subcommand writes an error to stderr and exits nonzero[33m 1207[2mms[22m[39m
+
+[31m⎯⎯⎯⎯⎯⎯⎯[39m[1m[41m Failed Tests 1 [49m[22m[31m⎯⎯⎯⎯⎯⎯⎯[39m
+
+[41m[1m FAIL [22m[49m src/http/routes/realtime-fanout.test.ts[2m > [22mDB-SUPA-5 bounded fan-out[2m > [22mheartbeat and close cleanup
+[31m[1mAssertionError[22m: expected 1 to be greater than or equal to 2[39m
+[36m [2m❯[22m src/http/routes/realtime-fanout.test.ts:[2m213:29[22m[39m
+    [90m211|[39m       .filter((frame) => frame.comment !== null)
+    [90m212|[39m       .map((frame) => frame.comment);
+    [90m213|[39m     expect(comments.length).toBeGreaterThanOrEqual(2);
+    [90m   |[39m                             [31m^[39m
+    [90m214|[39m     for (const comment of comments) expect(comment).toBe("heartbeat");
+    [90m215|[39m     // A heartbeat is a comment frame: no event, no data, no SSE id.
+
+[31m[2m⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯[22m[39m
+
+
+[2m Test Files [22m [1m[31m1 failed[39m[22m[2m | [22m[1m[32m297 passed[39m[22m[90m (298)[39m
+[2m      Tests [22m [1m[31m1 failed[39m[22m[2m | [22m[1m[32m2502 passed[39m[22m[2m | [22m[33m1 skipped[39m[90m (2504)[39m
+[2m   Start at [22m 11:55:57
+[2m   Duration [22m 389.02s[2m (tests 68%, import 28%, transform 2%, setup 1%, worker 1%)[22m
+
+[2m     Import [22m [33m474 modules were evaluated 1568 times[39m[2m · 384.76s total, 28% of tracked time[22m

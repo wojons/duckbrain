@@ -1,0 +1,2 @@
+[2m Test Files [22m [1m[31m1 failed[39m[22m[2m | [22m[1m[32m297 passed[39m[22m[90m (298)[39m
+[2m   Duration [22m 389.02s[2m (tests 68%, import 28%, transform 2%, setup 1%, worker 1%)[22m

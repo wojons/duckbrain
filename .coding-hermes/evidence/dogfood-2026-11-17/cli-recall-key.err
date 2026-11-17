@@ -1,0 +1,10 @@
+[duckbrain] Cleared stale DuckDB connections
+[recall] Tool called with input: {"namespace":"alpha","limit":10,"mode":"exact","key":"/infra/configs/new-db-host"}
+[recall] Validated input: {
+  key: '/infra/configs/new-db-host',
+  limit: 10,
+  offset: 0,
+  namespace: 'alpha'
+}
+(node:1580427) ExperimentalWarning: SQLite is an experimental feature and might change at any time
+(Use `node --trace-warnings ...` to show where the warning was created)

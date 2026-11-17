@@ -14,9 +14,13 @@ description: >-
   MCP forget; as-of time travel verified on all three surfaces 2026-09-24 but
   ABSENT from the stale origin/main, whose server silently answers ?as_of=
   with current-state; Web UI is DOA on hardened deployments — hardcodes ns
-  'default' + sends zero credentials, DF-0924-05). Load this
+  'default' + sends zero credentials, DF-0924-05; CLI recall --prefix is
+  IGNORED and returns the whole namespace — scope reads with REST ?prefix=
+  or MCP keyPrefix; use --flag=value, space-form flags are dropped;
+  list-keys hides leaves past depth 3; valid_until is a TOP-LEVEL field, not
+  an attribute). Load this
   before integrating DuckBrain into anything or answering "does DuckBrain work?".
-version: 1.14.0
+version: 1.15.0
 category: software-development
 ---
 
@@ -622,8 +626,10 @@ the one env var that overrides the endpoint on BOTH sync and push paths.
    pure full-text). Two runs on two namespace roots: 106,435 ms then
    13,006 ms, same abort, no hits printed either time. Do not put `search`
    in a script or agent loop on this build; use `recall --key=` for one key,
-   `list-keys --prefix=` for enumeration, or the HTTP API's
-   `?contains=<term>` (which answers 200 on the same store). Same
+   or the HTTP API's `?prefix=` / `?contains=<term>` (which answers 200 on the
+   same store). ⚠️ Do NOT fall back to the CLI's `list-keys --prefix=` for
+   enumeration — that prefix filter is itself broken on the same build (see
+   pitfall 38): it answers with a count and no keys. Same
    native-heap class as README-19 / README-19-R2 (daemon
    `*** stack smashing detected ***`); `src/search/query.ts:403`
    (`keywordSearch`) is the hot path.
@@ -635,6 +641,41 @@ the one env var that overrides the endpoint on BOTH sync and push paths.
    file the template to copy. Boot from a 3-key config instead:
    `{"defaultNamespace":"default","namespacesPath":"./<dir>","gitBatching":
    {"maxLines":100,"maxSeconds":30,"enabled":true}}`.
+
+37. **CLI `recall --prefix=<p>` returns the WHOLE namespace and says so
+   confidently (measured 2026-11-17, QA-DUCKBRAIN-042).** On a 44-memory
+   namespace, `duckbrain recall --prefix=/team/roster/ --limit=100` printed
+   `Found 44 memories` and listed every prefix; a prefix that cannot exist
+   returned 44 too, rc=0, no warning. Same data over REST
+   (`?prefix=/team/roster/`) gave 9 items, over MCP (`keyPrefix`) 9. The CLI
+   parses the flag and then drops it — its own stderr shows
+   `Tool called with input: {…,"mode":"prefix","prefix":"…"}` followed by
+   `Validated input: { limit, offset, namespace }` — because the recall tool's
+   schema names the filter `keyPrefix` and silently ignores unknown fields.
+   **Until fixed: scope reads with REST `?prefix=` or MCP `keyPrefix`; treat
+   any CLI `--prefix` result as unfiltered.**
+38. **`list-keys` counts keys it does not print, and `--help` runs the
+   listing (measured 2026-11-17, QA-DUCKBRAIN-043).**
+   `duckbrain list-keys --prefix=/team/roster/` prints `Keys (9 total):` and
+   then only the directory nodes `/team/` and `/team/roster/` — the nine
+   leaves are withheld by a hard-coded `maxDepth: 3`, there is no
+   `--depth`/leaf flag on the CLI, and nothing marks the truncation. Use the
+   HTTP `?prefix=` listing (which returns the keys) when you need the leaves.
+   `list-keys --help` also executes the listing instead of printing usage
+   (same class as `s3 --help`, `token --help`, `http --help`).
+39. **CLI flags: the `--flag=value` form works, at least two `--flag value`
+   forms are silently dropped (refines QA-DUCKBRAIN-036, measured
+   2026-11-17).** `recall --limit 3` validates as `limit: 10` while
+   `--limit=3` validates as 3; `list-keys --namespace alpha` misparses to
+   `true` (DOGFOOD-027-R2). Always write `--flag=value` in scripts and agent
+   prompts; a space-form flag does not error, it is discarded.
+40. **The validity window is a TOP-LEVEL record field, not an attribute
+   (measured 2026-11-17, DOC-26).** `{"valid_until": "2026-10-01T00:00:00Z",
+   …}` at the top level hides the fact from the current view and surfaces it
+   under `?historical=true`; the SAME value nested inside `"attributes"`
+   is inert and the fact stays "current" forever, with no warning on write.
+   The API reference says this; `docs/agentic-memory-roadmap.md` calling them
+   "write-side attributes" is wrong until DOC-26 lands.
 
 ## HTTP examples quickstart (the working path, 2026-09-26)
 

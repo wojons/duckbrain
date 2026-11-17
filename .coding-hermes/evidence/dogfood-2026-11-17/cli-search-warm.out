@@ -1,0 +1,31 @@
+Found 10 memories (35 total matches):
+
+=== /handoffs/24 [person · 2026-11-17T11:55:32.877Z] (score 0.1892) ===
+… memory 24: the person note recorded that deploy pipeline 24 was migrated after the <mark>Postgres cutover</mark> and the on-call rotation changed to team-0. {"ticket":"SPR-124","owner":"agent-4","confidence":0.9}
+
+=== /handoffs/19 [event · 2026-11-17T11:55:32.800Z] (score 0.1892) ===
+… memory 19: the event note recorded that deploy pipeline 19 was migrated after the <mark>Postgres cutover</mark> and the on-call rotation changed to team-3. {"ticket":"SPR-119","owner":"agent-4","confidence":0.9}
+
+=== /handoffs/14 [concept · 2026-11-17T11:55:32.730Z] (score 0.1892) ===
+… memory 14: the concept note recorded that deploy pipeline 14 was migrated after the <mark>Postgres cutover</mark> and the on-call rotation changed to team-2. {"ticket":"SPR-114","owner":"agent-4","confidence":0.9}
+
+=== /handoffs/09 [message · 2026-11-17T11:55:32.664Z] (score 0.1892) ===
+… memory 9: the message note recorded that deploy pipeline 9 was migrated after the <mark>Postgres cutover</mark> and the on-call rotation changed to team-1. {"ticket":"SPR-109","owner":"agent-4","confidence":0.9}
+
+=== /handoffs/04 [config · 2026-11-17T11:55:32.568Z] (score 0.1892) ===
+… memory 4: the config note recorded that deploy pipeline 4 was migrated after the <mark>Postgres cutover</mark> and the on-call rotation changed to team-0. {"ticket":"SPR-104","owner":"agent-4","confidence":0.9}
+
+=== /infra/configs/33 [message · 2026-11-17T11:55:33.004Z] (score 0.1864) ===
+… memory 33: the message note recorded that deploy pipeline 33 was migrated after the <mark>Postgres cutover</mark> and the on-call rotation changed to team-1. {"ticket":"SPR-133","owner":"agent-3","confidence":0.8}
+
+=== /sprint/incidents/32 [concept · 2026-11-17T11:55:32.990Z] (score 0.1864) ===
+… memory 32: the concept note recorded that deploy pipeline 32 was migrated after the <mark>Postgres cutover</mark> and the on-call rotation changed to team-0. {"ticket":"SPR-132","owner":"agent-2","confidence":0.7}
+
+=== /sprint/decisions/31 [event · 2026-11-17T11:55:32.974Z] (score 0.1864) ===
+… memory 31: the event note recorded that deploy pipeline 31 was migrated after the <mark>Postgres cutover</mark> and the on-call rotation changed to team-3. {"ticket":"SPR-131","owner":"agent-1","confidence":0.6}
+
+=== /team/roster/30 [person · 2026-11-17T11:55:32.960Z] (score 0.1864) ===
+… memory 30: the person note recorded that deploy pipeline 30 was migrated after the <mark>Postgres cutover</mark> and the on-call rotation changed to team-2. {"ticket":"SPR-130","owner":"agent-0","confidence":0.5}
+
+=== /handoffs/29 [raw_note · 2026-11-17T11:55:32.946Z] (score 0.1864) ===
+… memory 29: the raw_note note recorded that deploy pipeline 29 was migrated after the <mark>Postgres cutover</mark> and the on-call rotation changed to team-1. {"ticket":"SPR-129","owner":"agent-4","confidence":0.9}
