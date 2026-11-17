@@ -1,0 +1,97 @@
+RELEASE-2026-11-15-004 — deploy freshness re-measure, 2026-11-17 (ops tick duckbrain-ops-2026-11-17-22-07-54)
+=================================================================================================================
+Row: "deployed :3000 daemon runs a build older than the candidate" (P2, filed 2026-11-15T13:40Z).
+Acceptance arms graded below: /health 200; MainPID changed with a fresh ActiveEnterTimestamp;
+dist/bin/duckbrain.js mtime newer than the deployed (build-input) commit time; gate preamble
+"OPS-014 tree judged PASS and CI green".
+
+Host path prefix substitution: this artifact renders the operator home as ~ (the repository gates
+the PUBLISHED TREE for /home/<name>/ strings). Command text and output are otherwise verbatim,
+captured with `>>` redirection at 2026-11-17T17:19-05:00 (22:19Z).
+
+== A. refs ==
+$ git rev-parse HEAD
+7c5d5673fa5f84e192e321ee5fde8385b9881127
+$ git rev-parse origin/main
+7c5d5673fa5f84e192e321ee5fde8385b9881127
+$ git status -sb | head -1
+## main...origin/main
+
+== B. build-input commit ==
+$ git log -1 --format='%h %ci %s' -- src packages package.json pnpm-lock.yaml tsconfig.build.json
+60a081cc 2026-11-16 20:18:49 -0500 perf(users): keep git-else-memory but never swap sources on a failed git scan (PERF-016)
+$ git log --since='2026-11-16 20:18:49' --until='2026-11-17 05:56:03' --oneline -- src packages package.json pnpm-lock.yaml tsconfig.build.json | wc -l
+1
+
+== C. built artifact ==
+$ stat -c '%n mtime=%y size=%s' dist/bin/duckbrain.js
+dist/bin/duckbrain.js mtime=2026-11-17 05:56:02.001636589 -0500 size=18709
+$ find src -type f -newer dist/bin/duckbrain.js | wc -l
+0
+$ git status --porcelain -- src packages | wc -l
+0
+
+== D. live unit ==
+$ systemctl --user show duckbrain-http.service -p MainPID -p ActiveState -p ActiveEnterTimestamp -p NRestarts -p MemoryCurrent
+ActiveState=active
+ActiveEnterTimestamp=Tue 2026-11-17 15:53:58 -05
+MainPID=7732
+NRestarts=0
+MemoryCurrent=2477568000
+$ tr '\0' ' ' < /proc/7732/cmdline
+/usr/bin/node bin/duckbrain.js http --port 3000 --bind-all --auth=apikey --rate-limit 600 --unix-socket=/tmp/duckbrain.sock --unix-socket-mode=0660 --unix-socket-group=kara 
+$ readlink -f /proc/7732/cwd
+~/duckbrain
+$ ps -p 1986129 -o pid=,cmd=
+ps_rc=1
+$ ss -ltn | grep -c ':3000'
+1
+
+== E. health ==
+$ curl -s -o /dev/null -w 'http=%{http_code} t=%{time_total}\n' --max-time 20 http://127.0.0.1:3000/health
+http=200 t=0.002495
+$ curl -s --max-time 20 http://127.0.0.1:3000/health
+{"status":"healthy","uptime":5180.514526963,"timestamp":"2026-11-17T22:20:19.287Z","embedding":{"provider":"openai","model":"qwen/qwen3-embedding-8b","healthy":true,"providers":[{"id":"openai","healthy":true,"note":"ok"}]},"keys_error":null,"durability":{"defaultMode":"buffered","overrides":{}},"deadline_exceeded":[]}
+
+== F. CI at the build-input commit 60a081cc ==
+$ gh api repos/wojons/duckbrain/actions/runs?head_sha=60a081cc0df9d039209eb0a744fa2f04c7e2220c --jq '.workflow_runs[]|"\(.name) \(.conclusion) \(.created_at) \(.html_url)"'
+CI success 2026-11-17T10:50:01Z https://github.com/wojons/duckbrain/actions/runs/44068447201
+
+== G. judge run on the deployed tree ==
+$ jq -r '{task_id, passed, evaluated_at, fingerprint: .working_tree_content_fingerprint}' .gitreins/history/2026-11-17/c0e090fa/verdict.json
+{
+  "task_id": "PERF-016",
+  "passed": true,
+  "evaluated_at": "2026-11-17T11:00:46.168265",
+  "fingerprint": "71922274a8689004e96d6899b94b9304bca19ed72d6466615adab131ea3ccea3"
+}
+
+== H. why the PID changed: reboot, and the pre-reboot restart storm ==
+$ journalctl --user -u duckbrain-http.service --since '2026-11-17 15:45' --until '2026-11-17 15:55' --no-pager | grep -E 'restart counter|Boot|Failed at step|Started duckbrain|Unknown key' | tail -8
+Nov 17 15:49:59 karaHermes-mde-7840hs systemd[7126]: duckbrain-http.service: Scheduled restart job, restart counter is at 44.
+Nov 17 15:50:07 karaHermes-mde-7840hs systemd[7126]: Started duckbrain-http.service - DuckBrain HTTP Server (memory MCP — HTTP mode for scheduler sync).
+Nov 17 15:50:07 karaHermes-mde-7840hs (node)[4124688]: duckbrain-http.service: Failed at step CGROUP spawning /usr/bin/node: Permission denied
+Nov 17 15:50:16 karaHermes-mde-7840hs systemd[7126]: duckbrain-http.service: Scheduled restart job, restart counter is at 45.
+Nov 17 15:50:21 karaHermes-mde-7840hs systemd[7126]: Started duckbrain-http.service - DuckBrain HTTP Server (memory MCP — HTTP mode for scheduler sync).
+-- Boot 1451adb5cbc14689b2e8266689ad4502 --
+Nov 17 15:53:58 karaHermes-mde-7840hs systemd[7438]: ~/.config/systemd/user/duckbrain-http.service.d/10-restart-always.conf:6: Unknown key 'StartLimitIntervalSec' in section [Service], ignoring.
+Nov 17 15:53:58 karaHermes-mde-7840hs systemd[7438]: Started duckbrain-http.service - DuckBrain HTTP Server (memory MCP — HTTP mode for scheduler sync).
+
+NOTE: the unit did not start on request during this tick; the box rebooted at 15:53:58 -05
+and the unit came up with the build that was already on disk (dist mtime 05:56:02 -05).
+No restart was performed by this tick.
+
+== I. the judged tree covers the deployed build ==
+$ git merge-base --is-ancestor 60a081cc e848a96b; echo ancestor_rc=$?
+ancestor_rc=0
+$ git log --format='%h %ci %s' 60a081cc..e848a96b
+e848a96b 2026-11-17 05:50:31 -0500 evidence(PERF-016): live three-request stability proof on the 288-namespace store
+$ git diff --stat 60a081cc e848a96b | tail -4
+ .../board/evidence-PERF-016-20261117.txt           | 92 ++++++++++++++++++++++
+ .coding-hermes/board/tasks.jsonl                   |  2 +-
+ 2 files changed, 93 insertions(+), 1 deletion(-)
+
+READING: judge run .gitreins/history/2026-11-17/c0e090fa (PERF-016, passed=true,
+pass_class=judged) evaluated commit e848a96b, which is 60a081cc + board/evidence only.
+The newest build-input commit is 60a081cc, so the judged product tree and the tree the
+05:56:02 rebuild compiled are the same source. Arms 1-3 above therefore all hold.
