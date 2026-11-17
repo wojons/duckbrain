@@ -1,0 +1,483 @@
+{
+  "task_id": "PERF-016",
+  "task_title": "PERF-016: GET /users must never swap a namespace's git identities for memory authors when the git scan fails",
+  "task_criteria": [
+    "src/http/routes/users.ts documents the served author set: git identities from namespaces whose scan SUCCEEDS, UNION memory-record authors only from namespaces whose git repo is VERIFIED empty or absent, and NOTHING from a namespace whose scan fails operationally (timeout, non-zero exit, I/O error). Grep-provable in the file header.",
+    "src/http/routes/authorAggregation-no-swap-perf016.test.ts pins the no-swap rule for a namespace carrying BOTH git authors and memory-record authors: an injected lookup that rejects (timeout / operational error) yields no memory author and never calls the memory lookup, while a resolved empty array still falls back. Command: npx vitest run src/http/routes/authorAggregation-no-swap-perf016.test.ts src/http/routes/authorAggregation-fallback-semantics.test.ts src/http/routes/users-perf014.test.ts must pass.",
+    ".coding-hermes/board/evidence-PERF-016-20261117.txt records the live acceptance measurement on the daemon store /home/kara/.duckbrain-live/namespaces (288 namespace dirs): three consecutive GET /users returning an IDENTICAL identity set, with per-request latency, peak concurrent 'git log --all' count, and the stated loadavg. The artifact is committed and states identity sets identical across all three: YES.",
+    "npx tsc -p tsconfig.build.json passes on the tree and test-counts.json matches the live suite (a new suite was added)."
+  ],
+  "passed": true,
+  "worktree": "/home/kara/duckbrain",
+  "branch": "main",
+  "commit": "e848a96baeb6c6b44359d528615f6dd37be39489",
+  "pass_class": "judged",
+  "tier2_skipped": false,
+  "working_tree_content_fingerprint": "71922274a8689004e96d6899b94b9304bca19ed72d6466615adab131ea3ccea3",
+  "working_tree_dirty_path_count": 2,
+  "items": [
+    {
+      "criterion": "src/http/routes/users.ts documents the served author set: git identities from namespaces whose scan SUCCEEDS, UNION memory-record authors only from namespaces whose git repo is VERIFIED empty or absent, and NOTHING from a namespace whose scan fails operationally (timeout, non-zero exit, I/O error). Grep-provable in the file header.",
+      "status": "PASS",
+      "detail": "src/http/routes/users.ts:1-24 header states all three clauses verbatim: line 5 'git identities from every visible namespace whose git author scan SUCCEEDS'; lines 6-8 'UNION memory-record authors from namespaces whose git repository is verified empty or absent \u2014 an empty commit history, a directory that is not a git repository, or a namespace path that does not exist'; lines 9-11 'A namespace whose git scan fails operationally (timeout, non-zero exit, I/O error) contributes NOTHING to that request'. The documented rule matches the implementation: authorAggregation.ts:60-66 VERIFIED_ABSENT_GIT_STATUSES = {empty-success, no-repo, enoent} and authorAggregation.ts:100-104 forces db authors empty when gitFailed. [resolution 0.40; src/http/routes/users.ts]"
+    },
+    {
+      "criterion": "src/http/routes/authorAggregation-no-swap-perf016.test.ts pins the no-swap rule for a namespace carrying BOTH git authors and memory-record authors: an injected lookup that rejects (timeout / operational error) yields no memory author and never calls the memory lookup, while a resolved empty array still falls back. Command: npx vitest run src/http/routes/authorAggregation-no-swap-perf016.test.ts src/http/routes/authorAggregation-fallback-semantics.test.ts src/http/routes/users-perf014.test.ts must pass.",
+      "status": "PASS",
+      "detail": "Ran the exact command: `npx vitest run src/http/routes/authorAggregation-no-swap-perf016.test.ts src/http/routes/authorAggregation-fallback-semantics.test.ts src/http/routes/users-perf014.test.ts` -> exit 0, 'Test Files  3 passed (3)' / 'Tests  16 passed (16)'. The pinning cases: authorAggregation-no-swap-perf016.test.ts:88-113 (rejecting timeout lookup -> authors [] and dbCalls []), :115-135 (operational error -> authors [] and dbCalls []), :137-155 (resolved [] -> authors ['Memory Record Author'], dbCalls ['/ns/verified-empty']). The inverted legacy case is also green: authorAggregation-fallback-semantics.test.ts:60-80 and users-perf014.test.ts:41 (dbCalls.sort() == ['namespace-2']). [resolution 0.40; src/http/routes/authorAggregation-no-swap-perf016.test.ts, src/http/routes/authorAggregation-fallback-semantics.test.ts, src/http/routes/users-perf014.test.ts]"
+    },
+    {
+      "criterion": ".coding-hermes/board/evidence-PERF-016-20261117.txt records the live acceptance measurement on the daemon store /home/kara/.duckbrain-live/namespaces (288 namespace dirs): three consecutive GET /users returning an IDENTICAL identity set, with per-request latency, peak concurrent 'git log --all' count, and the stated loadavg. The artifact is committed and states identity sets identical across all three: YES.",
+      "status": "PASS",
+      "detail": "Artifact is tracked: `git ls-files --error-unmatch .coding-hermes/board/evidence-PERF-016-20261117.txt` succeeds; last commit touching it is e848a96b 'evidence(PERF-016): live three-request stability proof on the 288-namespace store'. Content (lines 47-60) records store /home/kara/.duckbrain-live/namespaces, three consecutive GET /users with latency 1.435 / 1.419 / 1.375 s, peak concurrent `git log --all` 4 / 5 / 5, loadavg 15.81 17.25 21.53, and 'identity sets identical across all three: YES (set equality, not just counts)'. The store size is independently confirmed live: `ls -d /home/kara/.duckbrain-live/namespaces/*/ | wc -l` -> 288."
+    },
+    {
+      "criterion": "npx tsc -p tsconfig.build.json passes on the tree and test-counts.json matches the live suite (a new suite was added).",
+      "status": "PASS",
+      "detail": "`npx tsc -p tsconfig.build.json` -> exit 0, no diagnostics. Full suite `npx vitest run` -> 'Test Files  298 passed (298)' / 'Tests  2504 passed (2504)' (log /tmp/perf016-full2.log). `scripts/sync-agents-md-counts.sh --check /tmp/perf016-full2.log` -> 'test-counts.json test counts match live suite (298 suites, 2504 tests)', exit 0; test-counts.json holds {\"suites\": 298, \"tests\": 2504}, bumped from 297/2495 in commit 60a081cc alongside the new 9-case suite. [resolution 0.40; tsconfig.build.json, test-counts.json]"
+    },
+    {
+      "criterion": "The no-swap rule is reachable from the real GET /users entrypoint (production path uses the status-gated fallback, not a dead code path).",
+      "status": "PASS",
+      "detail": "src/cli/http.ts:925 `app.use(\"/users\", createUsersRoutes)` mounts the route; users.ts:170-183 runs collectAuthorsInChild (child -> authorAggregationChild.ts:35 collectAuthorsForNamespaces) and falls back in-process to collectAuthorsForNamespaces at users.ts:180. Both reach the status-gated logic at authorAggregation.ts:80-125, where gitFailed forces the db scan to empty and logs result=no-fallback-on-failure.",
+      "derived": true
+    },
+    {
+      "criterion": "A real git timeout (execFile killed) is classified as 'timeout' and therefore does NOT fall back to memory authors \u2014 the actual production failure mode, not only the injected-lookup seam.",
+      "status": "PASS",
+      "detail": "Probe test (temporary file, removed after the run) mocking runGitAsync to throw an execFile-style error with killed=true: collectAuthorsForNamespaces returned [] with dbCalls [] and logged git=timeout -> 'Test Files 1 passed (1)' / 'Tests 1 passed (1)'. In-tree coverage of the same path: authorAggregation-no-swap-perf016.test.ts:180-195 ('contributes nothing when the git scan times out, even with memory rows present'), backed by errorText() at authorAggregation.ts:150-156 mapping killed/timeout messages to 'timeout'.",
+      "derived": true
+    },
+    {
+      "criterion": "The change does not regress the rest of the suite: full `npx vitest run` is green.",
+      "status": "PASS",
+      "detail": "Full `npx vitest run` on the tree -> 'Test Files  298 passed (298)' / 'Tests  2504 passed (2504)', no failing files (log /tmp/perf016-full2.log).",
+      "derived": true
+    }
+  ],
+  "merge_recommendation": "no_concerns_found",
+  "stages": {
+    "tier1": {
+      "id": "tier1",
+      "passed": true,
+      "any_failed": false,
+      "summary": "  \u2713 secrets: secrets: scanners=gitleaks+builtin cross-check\n  \u2713 tests: scanners: nice=nice -n 10",
+      "steps": [
+        {
+          "id": "secrets",
+          "type": "script",
+          "passed": true,
+          "output": "secrets: scanners=gitleaks+builtin cross-check\nscanners: nice=nice -n 10\n5:53AM INF scanned ~29032559 bytes (29.03 MB) in 9.32s\n5:53AM INF no leaks found\nsecrets: gitleaks: clean\nWARN: hook_timeout=300s <= test_timeout=1800s in /home/kara/duckbrain: the guard would be cut off mid-run and report a fail-open PASS. Raising this run's budget to 1920s \u2014 set guards.hook_timeout above guards.test_timeout to fix it at the source.\nsecrets: builtin cross-check: Scanned 487861 files \u2014 clean (excluded harness state: .gitreins/**)\nsensitive-path override applied: .npmrc\nsensitive-path override applied: .env.example\nsecrets: builtin cross-check status: clean\n",
+          "error": "",
+          "data": {
+            "exit_code": 0,
+            "guard_log": "/home/kara/duckbrain/.gitreins/logs/guard-20261115T061004.348731Z.log",
+            "secrets_scanners": [
+              "gitleaks",
+              "builtin"
+            ]
+          }
+        },
+        {
+          "id": "tests",
+          "type": "script",
+          "passed": true,
+          "output": "scanners: nice=nice -n 10\n\n RUN  v5.0.5 /home/kara/duckbrain\n\n[duckbrain] Cleared stale DuckDB connections\n(node:4048980) ExperimentalWarning: SQLite is an experimental feature and might change at any time\n(Use `node --trace-warnings ...` to show where the warning was created)\n[duckbrain] MCP server started in stdio mode\n(node:4049804) ExperimentalWarning: SQLite is an experimental feature and might change at any time\n(Use `node --trace-warnings ...` to show where the warning was created)\n(node:4071497) ExperimentalWarning: SQLite is an experimental feature and might change at any time\n(Use `node --trace-warnings ...` to show where the warning was created)\n(node:4077469) ExperimentalWarning: SQLite is an experimental feature and might change at any time\n(Use `node --trace-warnings ...` to show where the warning was created)\n(node:4086672) ExperimentalWarning: SQLite is an experimental feature and might change at any time\n(Use `node --trace-warnings ...` to show where the warning was created)\n(node:4087350) ExperimentalWarning: SQLite is an experimental feature and might change at any time\n(Use `node --trace-warnings ...` to show where the warning was created)\n(node:4089403) ExperimentalWarning: SQLite is an experimental feature and might change at any time\n(Use `node --trace-warnings ...` to show where the warning was created)\n(node:4089473) ExperimentalWarning: SQLite is an experimental feature and might change at any time\n(Use `node --trace-warnings ...` to show where the warning was created)\n(node:4091039) ExperimentalWarning: SQLite is an experimental feature and might change at any time\n(Use `node --trace-warnings ...` to show where the warning was created)\n(node:4093324) ExperimentalWarning: SQLite is an experimental feature and might change at any time\n(Use `node --trace-warnings ...` to show where the warning was created)\n(node:4093706) ExperimentalWarning: SQLite is an experimental feature and might change at any time\n(Use `node --trace-warnings ...` to show where the warning was created)\n(node:4094580) ExperimentalWarning: SQLite is an experimental feature and might change at any time\n(Use `node --trace-warnings ...` to show where the warning was created)\n(node:4094801) ExperimentalWarning: SQLite is an experimental feature and might change at any time\n(Use `node --trace-warnings ...` to show where the warning was created)\n(node:4094990) ExperimentalWarning: SQLite is an experimental feature and might change at any time\n(Use `node --trace-warnings ...` to show where the warning was created)\n(node:4095033) ExperimentalWarning: SQLite is an experimental feature and might change at any time\n(Use `node --trace-warnings ...` to show where the warning was created)\n(node:4095141) ExperimentalWarning: SQLite is an experimental feature and might change at any time\n(Use `node --trace-warnings ...` to show where the warning was created)\n(node:4095584) ExperimentalWarning: SQLite is an experimental feature and might change at any time\n(Use `node --trace-warnings ...` to show where the warning was created)\n(node:4095517) ExperimentalWarning: SQLite is an experimental feature and might change at any time\n(Use `node --trace-warnings ...` to show where the warning was created)\n(node:4096723) ExperimentalWarning: SQLite is an experimental feature and might change at any time\n(Use `node --trace-warnings ...` to show where the warning was created)\n(node:4097055) ExperimentalWarning: SQLite is an experimental feature and might change at any time\n(Use `node --trace-warnings ...` to show where the warning was created)\n\n Test Files  298 passed (298)\n      Tests  2504 passed (2504)\n   Start at  05:53:01\n   Duration  157.71s (tests 74%, import 24%, setup 1%, transform 1%, worker 1%)\n\n    Isolate  298 workers spawned \u00b7 ~204ms startup each (spawn + environment, per file)\n             at least ~15.02s faster with isolate: false \u2014 reuses workers across files instead of one per file\n\n",
+          "error": "",
+          "data": {
+            "exit_code": 0,
+            "guard_log": "/home/kara/duckbrain/.gitreins/logs/guard-20261115T061004.348731Z.log"
+          }
+        }
+      ],
+      "coverage": "secrets+tests"
+    },
+    "tier2": {
+      "id": "tier2",
+      "passed": true,
+      "any_failed": false,
+      "summary": "COMPLETE\n  \u2713 src/http/routes/users.ts documents the served author set: git identities from namespaces whose scan SUCCEEDS, UNION memory-record authors only from namespaces whose git repo is VERIFIED empty or absent, and NOTHING from a namespace whose scan fails operationally (timeout, non-zero exit, I/O error). Grep-provable in the file header.: src/http/routes/users.ts:1-24 header states all three clauses verbatim: line 5 'git identities from every visible namespace whose git author scan SUCCEEDS'; lines 6-8 'UNION memory-record authors from namespaces whose git repository is verified empty or absent \u2014 an empty commit history, a directory that is not a git repository, or a namespace path that does not exist'; lines 9-11 'A namespace whose git scan fails operationally (timeout, non-zero exit, I/O error) contributes NOTHING to that request'. The documented rule matches the implementation: authorAggregation.ts:60-66 VERIFIED_ABSENT_GIT_STATUSES = {empty-success, no-repo, enoent} and authorAggregation.ts:100-104 forces db authors empty when gitFailed. [resolution 0.40; src/http/routes/users.ts]\n  \u2713 src/http/routes/authorAggregation-no-swap-perf016.test.ts pins the no-swap rule for a namespace carrying BOTH git authors and memory-record authors: an injected lookup that rejects (timeout / operational error) yields no memory author and never calls the memory lookup, while a resolved empty array still falls back. Command: npx vitest run src/http/routes/authorAggregation-no-swap-perf016.test.ts src/http/routes/authorAggregation-fallback-semantics.test.ts src/http/routes/users-perf014.test.ts must pass.: Ran the exact command: `npx vitest run src/http/routes/authorAggregation-no-swap-perf016.test.ts src/http/routes/authorAggregation-fallback-semantics.test.ts src/http/routes/users-perf014.test.ts` -> exit 0, 'Test Files  3 passed (3)' / 'Tests  16 passed (16)'. The pinning cases: authorAggregation-no-swap-perf016.test.ts:88-113 (rejecting timeout lookup -> authors [] and dbCalls []), :115-135 (operational error -> authors [] and dbCalls []), :137-155 (resolved [] -> authors ['Memory Record Author'], dbCalls ['/ns/verified-empty']). The inverted legacy case is also green: authorAggregation-fallback-semantics.test.ts:60-80 and users-perf014.test.ts:41 (dbCalls.sort() == ['namespace-2']). [resolution 0.40; src/http/routes/authorAggregation-no-swap-perf016.test.ts, src/http/routes/authorAggregation-fallback-semantics.test.ts, src/http/routes/users-perf014.test.ts]\n  \u2713 .coding-hermes/board/evidence-PERF-016-20261117.txt records the live acceptance measurement on the daemon store /home/kara/.duckbrain-live/namespaces (288 namespace dirs): three consecutive GET /users returning an IDENTICAL identity set, with per-request latency, peak concurrent 'git log --all' count, and the stated loadavg. The artifact is committed and states identity sets identical across all three: YES.: Artifact is tracked: `git ls-files --error-unmatch .coding-hermes/board/evidence-PERF-016-20261117.txt` succeeds; last commit touching it is e848a96b 'evidence(PERF-016): live three-request stability proof on the 288-namespace store'. Content (lines 47-60) records store /home/kara/.duckbrain-live/namespaces, three consecutive GET /users with latency 1.435 / 1.419 / 1.375 s, peak concurrent `git log --all` 4 / 5 / 5, loadavg 15.81 17.25 21.53, and 'identity sets identical across all three: YES (set equality, not just counts)'. The store size is independently confirmed live: `ls -d /home/kara/.duckbrain-live/namespaces/*/ | wc -l` -> 288.\n  \u2713 npx tsc -p tsconfig.build.json passes on the tree and test-counts.json matches the live suite (a new suite was added).: `npx tsc -p tsconfig.build.json` -> exit 0, no diagnostics. Full suite `npx vitest run` -> 'Test Files  298 passed (298)' / 'Tests  2504 passed (2504)' (log /tmp/perf016-full2.log). `scripts/sync-agents-md-counts.sh --check /tmp/perf016-full2.log` -> 'test-counts.json test counts match live suite (298 suites, 2504 tests)', exit 0; test-counts.json holds {\"suites\": 298, \"tests\": 2504}, bumped from 297/2495 in commit 60a081cc alongside the new 9-case suite. [resolution 0.40; tsconfig.build.json, test-counts.json]\n  \u2713 The no-swap rule is reachable from the real GET /users entrypoint (production path uses the status-gated fallback, not a dead code path).: src/cli/http.ts:925 `app.use(\"/users\", createUsersRoutes)` mounts the route; users.ts:170-183 runs collectAuthorsInChild (child -> authorAggregationChild.ts:35 collectAuthorsForNamespaces) and falls back in-process to collectAuthorsForNamespaces at users.ts:180. Both reach the status-gated logic at authorAggregation.ts:80-125, where gitFailed forces the db scan to empty and logs result=no-fallback-on-failure.\n  \u2713 A real git timeout (execFile killed) is classified as 'timeout' and therefore does NOT fall back to memory authors \u2014 the actual production failure mode, not only the injected-lookup seam.: Probe test (temporary file, removed after the run) mocking runGitAsync to throw an execFile-style error with killed=true: collectAuthorsForNamespaces returned [] with dbCalls [] and logged git=timeout -> 'Test Files 1 passed (1)' / 'Tests 1 passed (1)'. In-tree coverage of the same path: authorAggregation-no-swap-perf016.test.ts:180-195 ('contributes nothing when the git scan times out, even with memory rows present'), backed by errorText() at authorAggregation.ts:150-156 mapping killed/timeout messages to 'timeout'.\n  \u2713 The change does not regress the rest of the suite: full `npx vitest run` is green.: Full `npx vitest run` on the tree -> 'Test Files  298 passed (298)' / 'Tests  2504 passed (2504)', no failing files (log /tmp/perf016-full2.log).\nAll four given criteria and all three derived criteria pass: the header documents the served set, the no-swap rule is pinned by a green 16-test focused run and reachable from the mounted /users route, the committed evidence artifact records three identical 21-identity responses on the 288-namespace store, and tsc plus the full 298-suite/2504-test run match test-counts.json. [uncovered failure paths: failure mode 1 (A non-zero git exit whose stderr happens to contain 'not a git repository' is classified as verified-absent and falls back to memory authors): detected_by is empty \u2014 uncovered failure path]",
+      "steps": [
+        {
+          "id": "tier2",
+          "type": "ai_eval",
+          "passed": true,
+          "output": "COMPLETE\n  \u2713 src/http/routes/users.ts documents the served author set: git identities from namespaces whose scan SUCCEEDS, UNION memory-record authors only from namespaces whose git repo is VERIFIED empty or absent, and NOTHING from a namespace whose scan fails operationally (timeout, non-zero exit, I/O error). Grep-provable in the file header.: src/http/routes/users.ts:1-24 header states all three clauses verbatim: line 5 'git identities from every visible namespace whose git author scan SUCCEEDS'; lines 6-8 'UNION memory-record authors from namespaces whose git repository is verified empty or absent \u2014 an empty commit history, a directory that is not a git repository, or a namespace path that does not exist'; lines 9-11 'A namespace whose git scan fails operationally (timeout, non-zero exit, I/O error) contributes NOTHING to that request'. The documented rule matches the implementation: authorAggregation.ts:60-66 VERIFIED_ABSENT_GIT_STATUSES = {empty-success, no-repo, enoent} and authorAggregation.ts:100-104 forces db authors empty when gitFailed. [resolution 0.40; src/http/routes/users.ts]\n\n\u2026 [4361 chars omitted \u2014 5 line(s)] \u2026\n  \u2713 The change does not regress the rest of the suite: full `npx vitest run` is green.: Full `npx vitest run` on the tree -> 'Test Files  298 passed (298)' / 'Tests  2504 passed (2504)', no failing files (log /tmp/perf016-full2.log).\nAll four given criteria and all three derived criteria pass: the header documents the served set, the no-swap rule is pinned by a green 16-test focused run and reachable from the mounted /users route, the committed evidence artifact records three identical 21-identity responses on the 288-namespace store, and tsc plus the full 298-suite/2504-test run match test-counts.json. [uncovered failure paths: failure mode 1 (A non-zero git exit whose stderr happens to contain 'not a git repository' is classified as verified-absent and falls back to memory authors): detected_by is empty \u2014 uncovered failure path]",
+          "error": "",
+          "data": {
+            "verdict": "COMPLETE",
+            "items": [
+              {
+                "criterion": "src/http/routes/users.ts documents the served author set: git identities from namespaces whose scan SUCCEEDS, UNION memory-record authors only from namespaces whose git repo is VERIFIED empty or absent, and NOTHING from a namespace whose scan fails operationally (timeout, non-zero exit, I/O error). Grep-provable in the file header.",
+                "status": "PASS",
+                "detail": "src/http/routes/users.ts:1-24 header states all three clauses verbatim: line 5 'git identities from every visible namespace whose git author scan SUCCEEDS'; lines 6-8 'UNION memory-record authors from namespaces whose git repository is verified empty or absent \u2014 an empty commit history, a directory that is not a git repository, or a namespace path that does not exist'; lines 9-11 'A namespace whose git scan fails operationally (timeout, non-zero exit, I/O error) contributes NOTHING to that request'. The documented rule matches the implementation: authorAggregation.ts:60-66 VERIFIED_ABSENT_GIT_STATUSES = {empty-success, no-repo, enoent} and authorAggregation.ts:100-104 forces db authors empty when gitFailed. [resolution 0.40; src/http/routes/users.ts]",
+                "resolution_probability": 0.4,
+                "cited_path": "src/http/routes/users.ts"
+              },
+              {
+                "criterion": "src/http/routes/authorAggregation-no-swap-perf016.test.ts pins the no-swap rule for a namespace carrying BOTH git authors and memory-record authors: an injected lookup that rejects (timeout / operational error) yields no memory author and never calls the memory lookup, while a resolved empty array still falls back. Command: npx vitest run src/http/routes/authorAggregation-no-swap-perf016.test.ts src/http/routes/authorAggregation-fallback-semantics.test.ts src/http/routes/users-perf014.test.ts must pass.",
+                "status": "PASS",
+                "detail": "Ran the exact command: `npx vitest run src/http/routes/authorAggregation-no-swap-perf016.test.ts src/http/routes/authorAggregation-fallback-semantics.test.ts src/http/routes/users-perf014.test.ts` -> exit 0, 'Test Files  3 passed (3)' / 'Tests  16 passed (16)'. The pinning cases: authorAggregation-no-swap-perf016.test.ts:88-113 (rejecting timeout lookup -> authors [] and dbCalls []), :115-135 (operational error -> authors [] and dbCalls []), :137-155 (resolved [] -> authors ['Memory Record Author'], dbCalls ['/ns/verified-empty']). The inverted legacy case is also green: authorAggregation-fallback-semantics.test.ts:60-80 and users-perf014.test.ts:41 (dbCalls.sort() == ['namespace-2']). [resolution 0.40; src/http/routes/authorAggregation-no-swap-perf016.test.ts, src/http/routes/authorAggregation-fallback-semantics.test.ts, src/http/routes/users-perf014.test.ts]",
+                "resolution_probability": 0.4,
+                "cited_path": "src/http/routes/authorAggregation-no-swap-perf016.test.ts, src/http/routes/authorAggregation-fallback-semantics.test.ts, src/http/routes/users-perf014.test.ts"
+              },
+              {
+                "criterion": ".coding-hermes/board/evidence-PERF-016-20261117.txt records the live acceptance measurement on the daemon store /home/kara/.duckbrain-live/namespaces (288 namespace dirs): three consecutive GET /users returning an IDENTICAL identity set, with per-request latency, peak concurrent 'git log --all' count, and the stated loadavg. The artifact is committed and states identity sets identical across all three: YES.",
+                "status": "PASS",
+                "detail": "Artifact is tracked: `git ls-files --error-unmatch .coding-hermes/board/evidence-PERF-016-20261117.txt` succeeds; last commit touching it is e848a96b 'evidence(PERF-016): live three-request stability proof on the 288-namespace store'. Content (lines 47-60) records store /home/kara/.duckbrain-live/namespaces, three consecutive GET /users with latency 1.435 / 1.419 / 1.375 s, peak concurrent `git log --all` 4 / 5 / 5, loadavg 15.81 17.25 21.53, and 'identity sets identical across all three: YES (set equality, not just counts)'. The store size is independently confirmed live: `ls -d /home/kara/.duckbrain-live/namespaces/*/ | wc -l` -> 288.",
+                "resolution_probability": 0.4
+              },
+              {
+                "criterion": "npx tsc -p tsconfig.build.json passes on the tree and test-counts.json matches the live suite (a new suite was added).",
+                "status": "PASS",
+                "detail": "`npx tsc -p tsconfig.build.json` -> exit 0, no diagnostics. Full suite `npx vitest run` -> 'Test Files  298 passed (298)' / 'Tests  2504 passed (2504)' (log /tmp/perf016-full2.log). `scripts/sync-agents-md-counts.sh --check /tmp/perf016-full2.log` -> 'test-counts.json test counts match live suite (298 suites, 2504 tests)', exit 0; test-counts.json holds {\"suites\": 298, \"tests\": 2504}, bumped from 297/2495 in commit 60a081cc alongside the new 9-case suite. [resolution 0.40; tsconfig.build.json, test-counts.json]",
+                "resolution_probability": 0.4,
+                "cited_path": "tsconfig.build.json, test-counts.json"
+              },
+              {
+                "criterion": "The no-swap rule is reachable from the real GET /users entrypoint (production path uses the status-gated fallback, not a dead code path).",
+                "status": "PASS",
+                "detail": "src/cli/http.ts:925 `app.use(\"/users\", createUsersRoutes)` mounts the route; users.ts:170-183 runs collectAuthorsInChild (child -> authorAggregationChild.ts:35 collectAuthorsForNamespaces) and falls back in-process to collectAuthorsForNamespaces at users.ts:180. Both reach the status-gated logic at authorAggregation.ts:80-125, where gitFailed forces the db scan to empty and logs result=no-fallback-on-failure.",
+                "derived": true
+              },
+              {
+                "criterion": "A real git timeout (execFile killed) is classified as 'timeout' and therefore does NOT fall back to memory authors \u2014 the actual production failure mode, not only the injected-lookup seam.",
+                "status": "PASS",
+                "detail": "Probe test (temporary file, removed after the run) mocking runGitAsync to throw an execFile-style error with killed=true: collectAuthorsForNamespaces returned [] with dbCalls [] and logged git=timeout -> 'Test Files 1 passed (1)' / 'Tests 1 passed (1)'. In-tree coverage of the same path: authorAggregation-no-swap-perf016.test.ts:180-195 ('contributes nothing when the git scan times out, even with memory rows present'), backed by errorText() at authorAggregation.ts:150-156 mapping killed/timeout messages to 'timeout'.",
+                "derived": true
+              },
+              {
+                "criterion": "The change does not regress the rest of the suite: full `npx vitest run` is green.",
+                "status": "PASS",
+                "detail": "Full `npx vitest run` on the tree -> 'Test Files  298 passed (298)' / 'Tests  2504 passed (2504)', no failing files (log /tmp/perf016-full2.log).",
+                "derived": true
+              }
+            ],
+            "summary": "All four given criteria and all three derived criteria pass: the header documents the served set, the no-swap rule is pinned by a green 16-test focused run and reachable from the mounted /users route, the committed evidence artifact records three identical 21-identity responses on the 288-namespace store, and tsc plus the full 298-suite/2504-test run match test-counts.json. [uncovered failure paths: failure mode 1 (A non-zero git exit whose stderr happens to contain 'not a git repository' is classified as verified-absent and falls back to memory authors): detected_by is empty \u2014 uncovered failure path]",
+            "provenance": {
+              "model": "deepseek-v4-flash",
+              "base_url_source": "GITREINS_LLM_BASE_URL",
+              "api_key_source": "GITREINS_LLM_API_KEY"
+            }
+          }
+        }
+      ],
+      "model": "deepseek-v4-flash",
+      "base_url_source": "GITREINS_LLM_BASE_URL",
+      "api_key_source": "GITREINS_LLM_API_KEY",
+      "tool_calls": [
+        {
+          "tool": "get_task_item",
+          "command": "get_task_item {\"id\": \"PERF-016\"}",
+          "exit_code": 0,
+          "output_sha": "2fec6811c5b8a8ec7379f129bc056240ece595b821ca5af1e117b53e1db2c080"
+        },
+        {
+          "tool": "run_command",
+          "command": "cd /home/kara 2>/dev/null; pwd; ls",
+          "exit_code": 0,
+          "output_sha": "a4d2414c35be3911d9dedeb0c31d1ad8996e1074a3149ff6950dd06eb7555a5b"
+        },
+        {
+          "tool": "run_command",
+          "command": "pwd; ls -la | head -50",
+          "exit_code": 0,
+          "output_sha": "a286234e72746e4e39cb71e9b99f1eb4242c4f503175df3ee95ea7045904901a"
+        },
+        {
+          "tool": "run_command",
+          "command": "cd /home/kara/duckbrain && git status --short | head -40 && echo \"---LOG---\" && git log --oneline -8",
+          "exit_code": 0,
+          "output_sha": "e533dfc6eb36f7d11168c513d1878fe58a148f31b9420b5b3767010d30341bbb"
+        },
+        {
+          "tool": "run_command",
+          "command": "cd /home/kara/duckbrain && ls src/http/routes/ | head -60 && echo \"---\" && ls .coding-hermes/board/ | grep -i perf-016",
+          "exit_code": 0,
+          "output_sha": "c4a19d2ba6e288824790c873c5e95b1c1ba67cc31824cb9c25a2c29a58509858"
+        },
+        {
+          "tool": "run_command",
+          "command": "cd /home/kara/duckbrain && git show --stat 60a081cc && echo \"=====\" && git show --stat e848a96b",
+          "exit_code": 0,
+          "output_sha": "679804d6134ce6feab42b7f9d06470dd0919cd82b8d5dfdb26d9fd181a20e899"
+        },
+        {
+          "tool": "read_file",
+          "command": "read_file {\"path\": \"src/http/routes/authorAggregation.ts\"}",
+          "exit_code": 0,
+          "output_sha": "1da6adce801c5587fa43dd889bd23617249e370413bec8d14efead2b2cdd8886"
+        },
+        {
+          "tool": "read_file",
+          "command": "read_file {\"path\": \"src/http/routes/users.ts\"}",
+          "exit_code": 0,
+          "output_sha": "327db42c852f374861c9418f55063654ce62ab74d891652dc5350fb891e60516"
+        },
+        {
+          "tool": "read_file",
+          "command": "read_file {\"path\": \"src/http/routes/authorAggregation-no-swap-perf016.test.ts\"}",
+          "exit_code": 0,
+          "output_sha": "12dfca4fbe8276ab108efed27160624acbc644c1bf15843e1f0c37fdced353bf"
+        },
+        {
+          "tool": "read_file",
+          "command": "read_file {\"path\": \"src/http/routes/authorAggregationChild.ts\"}",
+          "exit_code": 0,
+          "output_sha": "9102a02c2b57d2873638f3a4f2dd0f12053b1ba35e63c542c59ba3a6cde33500"
+        },
+        {
+          "tool": "read_file",
+          "command": "read_file {\"path\": \".coding-hermes/board/evidence-PERF-016-20261117.txt\"}",
+          "exit_code": 0,
+          "output_sha": "a2b1e3283bdfcba2bd8dcb1690ced451b10dcab11e1d2a4f6945532341a953cf"
+        },
+        {
+          "tool": "run_command",
+          "command": "cd /home/kara/duckbrain && npx vitest run src/http/routes/authorAggregation-no-swap-perf016.test.ts src/http/routes/authorAggregation-fallback-semantics.test.ts src/http/routes/users-perf014.test.ts 2>&1 | tail -40",
+          "exit_code": 0,
+          "output_sha": "53a4f9462bda938ee3c75154ac7652432f114e4154e6cfc77b728898b8b9ae60"
+        },
+        {
+          "tool": "run_command",
+          "command": "cd /home/kara/duckbrain && cat test-counts.json && echo \"---\" && git show 60a081cc -- test-counts.json",
+          "exit_code": 0,
+          "output_sha": "59cbfec846ccd53334a84453470685b8b60ea4661fb1302a341a0bfe15d2df2d"
+        },
+        {
+          "tool": "run_command",
+          "command": "cd /home/kara/duckbrain && npx tsc -p tsconfig.build.json 2>&1 | tail -20; echo \"TSC_EXIT=$?\"",
+          "exit_code": 0,
+          "output_sha": "2d669d25fcc11b929ab2f3636c80408b37cec230c4158e1a04b7dfa43aadcaf5"
+        },
+        {
+          "tool": "run_command",
+          "command": "cd /home/kara/duckbrain && cat scripts/sync-agents-md-counts.sh 2>/dev/null | head -60; echo \"---\"; grep -rn \"test-counts\" .github/workflows/ 2>/dev/null | head",
+          "exit_code": 0,
+          "output_sha": "cdb251b98ca64c0e71657df3f0b95b652634259e4d48e9365715cb53dae12549"
+        },
+        {
+          "tool": "run_command",
+          "command": "cd /home/kara/duckbrain && npx vitest run > /tmp/perf016-full-vitest.log 2>&1; echo \"EXIT=$?\"; tail -25 /tmp/perf016-full-vitest.log",
+          "exit_code": -15,
+          "output_sha": "7dd1a4f40bf606f419d4fcdd620ddbc6a65da1b3689c24eb33bab2143d184ebe"
+        },
+        {
+          "tool": "run_command",
+          "command": "cd /home/kara/duckbrain && nohup npx vitest run > /tmp/perf016-full-vitest.log 2>&1 & echo started",
+          "exit_code": 0,
+          "output_sha": "5d31f3f536d560a518d51d89a786079bc887c366ef7df63a2651c5302f1327b3"
+        },
+        {
+          "tool": "read_file",
+          "command": "read_file {\"path\": \"src/http/routes/authorAggregation-fallback-semantics.test.ts\"}",
+          "exit_code": 0,
+          "output_sha": "4cbd90cbb9fcf859e7cd87f0830bcc9bde797f7a7b6b5c6c316c1cbb9104addd"
+        },
+        {
+          "tool": "run_command",
+          "command": "cd /home/kara/duckbrain && git show 60a081cc -- src/http/routes/users-perf014.test.ts src/http/routes/users.ts",
+          "exit_code": 0,
+          "output_sha": "15766351659846e38cca7596254bd0557e9cb56e6bd805be8c4ac8a2c90adaaf"
+        },
+        {
+          "tool": "run_command",
+          "command": "cd /home/kara/duckbrain && git show 60a081cc -- src/http/routes/users-perf014.test.ts | head -80",
+          "exit_code": 0,
+          "output_sha": "6b503a7df9ba50c5bb6502b89290784f4e7a59bc81a2f3a6f580315111d358f4"
+        },
+        {
+          "tool": "run_command",
+          "command": "cd /home/kara/duckbrain && grep -n \"throw\\|dbCalls\\|getDbAuthors\\|getGitAuthors\" src/http/routes/users-perf014.test.ts | head -40",
+          "exit_code": 0,
+          "output_sha": "940de8d044bdc3dda26eaacf99bcd135e514aa5ac0be8f4c37fc5a6bee4f2d5c"
+        },
+        {
+          "tool": "run_command",
+          "command": "cd /home/kara/duckbrain && grep -n \"runGitAsync\" -A 60 src/git/exec.ts | head -100",
+          "exit_code": 0,
+          "output_sha": "1608d0a6a5c1f0742db77837dcdcd5243db7fb63e42e5d8d961e9a57693dfae2"
+        },
+        {
+          "tool": "run_command",
+          "command": "cd /home/kara/duckbrain && grep -rn \"authorAggregation\\|collectAuthorsForNamespaces\" --include=*.ts src/ | grep -v \"\\.test\\.ts\" | head -20",
+          "exit_code": 0,
+          "output_sha": "3b19f6c298880c7c3c5e353b926d31db7ee4753aa51a05c8ddad2d70f17eb9c4"
+        },
+        {
+          "tool": "run_command",
+          "command": "cd /home/kara/duckbrain && grep -rn \"users\" src/http/routes/index.ts | head -20",
+          "exit_code": 0,
+          "output_sha": "be0c71cfbfb82932eedf374652ec324577cb591f64ddf4af24ae62da326805fd"
+        },
+        {
+          "tool": "run_command",
+          "command": "cd /home/kara/duckbrain && grep -rn \"createUsersRoutes\\|routes/users\" --include=*.ts src/ | grep -v \"\\.test\\.ts\" | head -20",
+          "exit_code": 0,
+          "output_sha": "cebd20634cd50bb0fcde08bc8d90f1d5ce7b5abb1871af617966da81bc3548dc"
+        },
+        {
+          "tool": "run_command",
+          "command": "tail -30 /tmp/perf016-full-vitest.log; echo \"===\"; grep -c \"\" /tmp/perf016-full-vitest.log",
+          "exit_code": 1,
+          "output_sha": "f9582f6e84e278a0d27f57a65b2da45a69aa4863e671b927b06d2ab4db5a0ea2"
+        },
+        {
+          "tool": "run_command",
+          "command": "sleep 25; tail -30 /tmp/perf016-full-vitest.log; echo \"===\"; wc -l /tmp/perf016-full-vitest.log",
+          "exit_code": 0,
+          "output_sha": "0eeed49956b4017d95110a461748196513db4be68dd8c730528693fa30ba0ec6"
+        },
+        {
+          "tool": "run_command",
+          "command": "ps aux | grep -c vitest; ls -la /tmp/perf016-full-vitest.log",
+          "exit_code": 0,
+          "output_sha": "10a86bd4e4629159d5fbabc6f3937fbd75d29d282447da25ac8d39a9a2ce1a56"
+        },
+        {
+          "tool": "run_command",
+          "command": "cd /home/kara/duckbrain && (setsid npx vitest run --reporter=default > /tmp/perf016-full2.log 2>&1 < /dev/null &) ; sleep 20; wc -l /tmp/perf016-full2.log; tail -5 /tmp/perf016-full2.log",
+          "exit_code": 0,
+          "output_sha": "6b740b66065ea04229c82155dc9f353d52691922781f8f8958f9e481d77415f8"
+        },
+        {
+          "tool": "run_command",
+          "command": "sleep 28; tail -20 /tmp/perf016-full2.log",
+          "exit_code": 0,
+          "output_sha": "a68c4453b79402c1f3f2eb13ecfbec732d122181b7b1c6fa24ca9ec741daec8f"
+        },
+        {
+          "tool": "run_command",
+          "command": "sleep 29; tail -6 /tmp/perf016-full2.log",
+          "exit_code": 0,
+          "output_sha": "e626e03bc548e7284ae2179110a61c43a6b441ceae15d449c06708e631da8731"
+        },
+        {
+          "tool": "run_command",
+          "command": "sleep 29; grep -E \"Test Files|Tests  \" /tmp/perf016-full2.log | tail -5; tail -3 /tmp/perf016-full2.log",
+          "exit_code": 0,
+          "output_sha": "bebcd8bf145b96f57cc5bab13adf1d08a8a831c25906e5a2f9116edc3417cce8"
+        },
+        {
+          "tool": "run_command",
+          "command": "sleep 29; grep -E \"Test Files|Tests  \" /tmp/perf016-full2.log | tail -5; tail -3 /tmp/perf016-full2.log",
+          "exit_code": 0,
+          "output_sha": "fd01d9c92c2bac240051d633ffce243e842e4b1a63c28b871c02e7c3f98a38c3"
+        },
+        {
+          "tool": "run_command",
+          "command": "sleep 29; grep -E \"Test Files|Tests  \" /tmp/perf016-full2.log | tail -5; echo \"---\"; tail -2 /tmp/perf016-full2.log",
+          "exit_code": 0,
+          "output_sha": "e83aa2f8cf3766bc6c9b1443f221dbf91f11e1309665e8a623dbe2fc2d374a0b"
+        },
+        {
+          "tool": "run_command",
+          "command": "cd /home/kara/duckbrain && scripts/sync-agents-md-counts.sh --check /tmp/perf016-full2.log; echo \"CHECK_EXIT=$?\"",
+          "exit_code": 0,
+          "output_sha": "c196042e494d83497ad8465a5a587562a107e9204e1e18734ebdd167c79fe781"
+        },
+        {
+          "tool": "run_command",
+          "command": "cd /home/kara/duckbrain && git log --oneline -1 -- .coding-hermes/board/evidence-PERF-016-20261117.txt && git ls-files --error-unmatch .coding-hermes/board/evidence-PERF-016-20261117.txt && echo TRACKED; ls -d /home/kara/.duckbrain-live/namespaces/*/ 2>/dev/null | wc -l",
+          "exit_code": 0,
+          "output_sha": "1ec8256c132e9efac9f82039d6409252e4ebb5e069620c82b2e2a6ad9129cd84"
+        },
+        {
+          "tool": "sandbox_write",
+          "command": "sandbox_write {\"content\": \"PASS: src/http/routes/users.ts:1-24 file header states git identities from namespaces whose scan SUCCEEDS, UNION memory authors only from verified-empty/absent (empty history, not-a-git-repo, missing path), and NOTHING from a namespace whose scan fails operationally (timeout, non-zero exit, I/O error). Grep-provable: `grep -n \\\"SUCCEEDS\\\\|verified empty or absent\\\\|contributes NOTHING\\\" src/http/routes/users.ts` -> lines 5,6-8,9-11.\", \"key\": \"verified_0\"}",
+          "exit_code": 0,
+          "output_sha": "2645c6bb8ddf8ca1b30948a4d254c3bf16c56f7b8892a6f172b4a2e4f4635464"
+        },
+        {
+          "tool": "sandbox_write",
+          "command": "sandbox_write {\"content\": \"PASS: npx vitest run the 3 files -> \\\"Test Files 3 passed (3) / Tests 16 passed (16)\\\", exit 0. authorAggregation-no-swap-perf016.test.ts:88-113 pins rejecting timeout lookup -> authors [] and dbCalls []; :115-135 operational error same; :137-155 resolved [] still falls back (dbCalls [\\\"/ns/verified-empty\\\"]).\", \"key\": \"verified_1\"}",
+          "exit_code": 0,
+          "output_sha": "3977ed57ac08b112aeba5e2db3d9f85c2c8a8fe248320a2040029d19e71e43a8"
+        },
+        {
+          "tool": "sandbox_write",
+          "command": "sandbox_write {\"content\": \"PASS: .coding-hermes/board/evidence-PERF-016-20261117.txt is tracked (git ls-files --error-unmatch OK, commit e848a96b). Lines 47-60 record store /home/kara/.duckbrain-live/namespaces (288 dirs; `ls -d .../namespaces/*/ | wc -l` = 288 verified live), three consecutive GET /users with latency 1.435/1.419/1.375 s, peak concurrent `git log --all` 4/5/5, loadavg 15.81 17.25 21.53, and \\\"identity sets identical across all three: YES\\\".\", \"key\": \"verified_2\"}",
+          "exit_code": 0,
+          "output_sha": "0933a511011a7424968f0169d8f5c0edfe0f32e32425b445982439a441297008"
+        },
+        {
+          "tool": "sandbox_write",
+          "command": "sandbox_write {\"content\": \"PASS: npx tsc -p tsconfig.build.json -> exit 0, no output. Full suite `npx vitest run` -> \\\"Test Files 298 passed (298) / Tests 2504 passed (2504)\\\"; scripts/sync-agents-md-counts.sh --check /tmp/perf016-full2.log -> \\\"test-counts.json test counts match live suite (298 suites, 2504 tests)\\\" exit 0, matching test-counts.json {suites:298, tests:2504}.\", \"key\": \"verified_3\"}",
+          "exit_code": 0,
+          "output_sha": "fc3ff1af7e8b1b1af5fba1df99155834eb07e49d9fcaefc823298ea8a284fcd1"
+        },
+        {
+          "tool": "sandbox_write",
+          "command": "sandbox_write {\"content\": \"derived_0: The no-swap rule is reachable from the real GET /users entrypoint: the production path (src/cli/http.ts:925 app.use(\\\"/users\\\", createUsersRoutes)) runs collectAuthorsForNamespaces in the child (authorAggregationChild.ts:35) and in the in-process fallback (users.ts:180), both of which use the status-gated fallback in authorAggregation.ts:80-125.\\nderived_1: A real git timeout (execFile killed) is classified as \\\"timeout\\\" and therefore does NOT fall back to memory authors \\u2014 the actual production failure mode, not only the injected-lookup seam.\\nderived_2: The change does not regress the rest of the suite: full `npx vitest run` is green.\", \"key\": \"derived\"}",
+          "exit_code": 0,
+          "output_sha": "64466c9ef7737b4b5105a1657858561079dfe6b41566a15b42e9eca7d358bf03"
+        },
+        {
+          "tool": "run_command",
+          "command": "cd /home/kara/duckbrain && sed -n 915,930p src/cli/http.ts",
+          "exit_code": 0,
+          "output_sha": "2f22fe2614840566cad0f311413deaf5a22d505b6eeb2748d30631fb1c0077bd"
+        },
+        {
+          "tool": "sandbox_write",
+          "command": "sandbox_write {\"content\": \"PASS: src/cli/http.ts:925 mounts createUsersRoutes at /users; users.ts:170-183 calls collectAuthorsInChild (child -> authorAggregationChild.ts:35 collectAuthorsForNamespaces) and falls back to collectAuthorsForNamespaces in-process; both reach the status-gated logic at authorAggregation.ts:80-125 (gitFailed -> db authors forced empty).\", \"key\": \"verified_derived_0\"}",
+          "exit_code": 0,
+          "output_sha": "32ea8f8f8a060a24c7977ee83c9a21398cd45f7d150ab041b9d2ebcacade5813"
+        },
+        {
+          "tool": "run_command",
+          "command": "cd /home/kara/duckbrain && cat > /tmp/perf016-timeout-probe.test.ts <<'EOF'\nimport { describe, expect, it, vi } from \"vitest\";\nvi.mock(\"../../git/exec\", () => ({\n  runGitAsync: async () => {\n    const e = new Error(\"Command failed: git log --all --format=%aN\") as Error & { killed?: boolean };\n    e.killed = true;\n    throw e;\n  },\n}));\nimport { collectAuthorsForNamespaces } from \"/home/kara/duckbrain/src/http/routes/authorAggregation\";\ndescribe(\"probe\", () => {\n  it(\"killed git -> no memory fallback\", async () => {\n    const dbCalls: string[] = [];\n    const spy = vi.spyOn(console, \"error\").mockImplementation(() => {});\n    const authors = await collectAuthorsForNamespaces([{ path: \"/ns/x\" }], {\n      getDbAuthors: async (p) => { dbCalls.push(p); return [\"Mem\"]; },\n    });\n    expect(authors).toEqual([]);\n    expect(dbCalls).toEqual([]);\n    expect(spy.mock.calls.map(c => c.join(\" \")).join(\"\\n\")).toContain(\"git=timeout\");\n  });\n});\nEOF\ncp /tmp/perf016-timeout-probe.test.ts src/http/routes/zz-perf016-probe.test.ts && npx vitest run src/http/routes/zz-perf016-probe.test.ts 2>&1 | tail -12; rm -f src/http/routes/zz-perf016-probe.test.ts",
+          "exit_code": 0,
+          "output_sha": "d5fa39005cc688c65ae75496403b85674798458c43f8db7fb7d6657567540599"
+        },
+        {
+          "tool": "sandbox_write",
+          "command": "sandbox_write {\"content\": \"PASS: probe test (temp file, removed after run) mocking runGitAsync to throw an execFile-style error with killed=true: collectAuthorsForNamespaces returned [] and dbCalls [] and logged git=timeout -> \\\"Test Files 1 passed (1) / Tests 1 passed (1)\\\". Same path is pinned in-tree by authorAggregation-no-swap-perf016.test.ts:180-195 (\\\"contributes nothing when the git scan times out\\\").\", \"key\": \"verified_derived_1\"}",
+          "exit_code": 0,
+          "output_sha": "47751b9dd325a5e406e38e03426e82cd249b27c253697c2d7808a293b6cc3760"
+        },
+        {
+          "tool": "sandbox_write",
+          "command": "sandbox_write {\"content\": \"PASS: full `npx vitest run` on the tree -> \\\"Test Files 298 passed (298) / Tests 2504 passed (2504)\\\" (log /tmp/perf016-full2.log), no failures.\", \"key\": \"verified_derived_2\"}",
+          "exit_code": 0,
+          "output_sha": "e62b93a2fd53105b3f7a27aba07775f07a24d11f1d611ae3c90051cddb0a8d39"
+        }
+      ]
+    }
+  },
+  "review": {
+    "reviewer_email": "totalwindupflightsystems@gmail.com",
+    "reviewer_name": "totalwindupflightsystems",
+    "commit_author_email": "totalwindupflightsystems@gmail.com",
+    "commit_author_name": "totalwindupflightsystems",
+    "self_review": true,
+    "findings": [],
+    "summary": "The diff only appends a completed task record to .gitreins/tasks.yaml with no code changes, so there is nothing to evidence a defect against."
+  },
+  "summary": "Stage tier1: PASS\n    \u2713 secrets: secrets: scanners=gitleaks+builtin cross-check\n  \u2713 tests: scanners: nice=nice -n 10\n\nStage tier2: PASS\n  COMPLETE\n  \u2713 src/http/routes/users.ts documents the served author set: git identities from namespaces whose scan SUCCEEDS, UNION memory-record authors only from namespaces whose git repo is VERIFIED empty or absent, and NOTHING from a namespace whose scan fails operationally (timeout, non-zero exit, I/O error). Grep-provable in the file header.: src/http/routes/users.ts:1-24 header states all three clauses verbatim: line 5 'git identities from every visible namespace whose git author scan SUCCEEDS'; lines 6-8 'UNION memory-record authors from namespaces whose git repository is verified empty or absent \u2014 an empty commit history, a directory that is not a git repository, or a namespace path that does not exist'; lines 9-11 'A namespace whose git scan fails operationally (timeout, non-zero exit, I/O error) contributes NOTHING to that request'. The documented rule matches the implementation: authorAggregation.ts:60-66 VERIFIED_ABSENT_GIT_STATUSES = {empty-success, no-repo, enoent} and authorAggregation.ts:100-104 forces db authors empty when gitFailed. [resolution 0.40; src/http/routes/users.ts]\n  \u2713 src/http/routes/authorAggregation-no-swap-perf016.test.ts pins the no-swap rule for a namespace carrying BOTH git authors and memory-record authors: an injected lookup that rejects (timeout / operational error) yields no memory author and never calls the memory lookup, while a resolved empty array still falls back. Command: npx vitest run src/http/routes/authorAggregation-no-swap-perf016.test.ts src/http/routes/authorAggregation-fallback-semantics.test.ts src/http/routes/users-perf014.test.ts must pass.: Ran the exact command: `npx vitest run src/http/routes/authorAggregation-no-swap-perf016.test.ts src/http/routes/authorAggregation-fallback-semantics.test.ts src/http/routes/users-perf014.test.ts` -> exit 0, 'Test Files  3 passed (3)' / 'Tests  16 passed (16)'. The pinning cases: authorAggregation-no-swap-perf016.test.ts:88-113 (rejecting timeout lookup -> authors [] and dbCalls []), :115-135 (operational error -> authors [] and dbCalls []), :137-155 (resolved [] -> authors ['Memory Record Author'], dbCalls ['/ns/verified-empty']). The inverted legacy case is also green: authorAggregation-fallback-semantics.test.ts:60-80 and users-perf014.test.ts:41 (dbCalls.sort() == ['namespace-2']). [resolution 0.40; src/http/routes/authorAggregation-no-swap-perf016.test.ts, src/http/routes/authorAggregation-fallback-semantics.test.ts, src/http/routes/users-perf014.test.ts]\n  \u2713 .coding-hermes/board/evidence-PERF-016-20261117.txt records the live acceptance measurement on the daemon store /home/kara/.duckbrain-live/namespaces (288 namespace dirs): three consecutive GET /users returning an IDENTICAL identity set, with per-request latency, peak concurrent 'git log --all' count, and the stated loadavg. The artifact is committed and states identity sets identical across all three: YES.: Artifact is tracked: `git ls-files --error-unmatch .coding-hermes/board/evidence-PERF-016-20261117.txt` succeeds; last commit touching it is e848a96b 'evidence(PERF-016): live three-request stability proof on the 288-namespace store'. Content (lines 47-60) records store /home/kara/.duckbrain-live/namespaces, three consecutive GET /users with latency 1.435 / 1.419 / 1.375 s, peak concurrent `git log --all` 4 / 5 / 5, loadavg 15.81 17.25 21.53, and 'identity sets identical across all three: YES (set equality, not just counts)'. The store size is independently confirmed live: `ls -d /home/kara/.duckbrain-live/namespaces/*/ | wc -l` -> 288.\n  \u2713 npx tsc -p tsconfig.build.json passes on the tree and test-counts.json matches the live suite (a new suite was added).: `npx tsc -p tsconfig.build.json` -> exit 0, no diagnostics. Full suite `npx vitest run` -> 'Test Files  298 passed (298)' / 'Tests  2504 passed (2504)' (log /tmp/perf016-full2.log). `scripts/sync-agents-md-counts.sh --check /tmp/perf016-full2.log` -> 'test-counts.json test counts match live suite (298 suites, 2504 tests)', exit 0; test-counts.json holds {\"suites\": 298, \"tests\": 2504}, bumped from 297/2495 in commit 60a081cc alongside the new 9-case suite. [resolution 0.40; tsconfig.build.json, test-counts.json]\n  \u2713 The no-swap rule is reachable from the real GET /users entrypoint (production path uses the status-gated fallback, not a dead code path).: src/cli/http.ts:925 `app.use(\"/users\", createUsersRoutes)` mounts the route; users.ts:170-183 runs collectAuthorsInChild (child -> authorAggregationChild.ts:35 collectAuthorsForNamespaces) and falls back in-process to collectAuthorsForNamespaces at users.ts:180. Both reach the status-gated logic at authorAggregation.ts:80-125, where gitFailed forces the db scan to empty and logs result=no-fallback-on-failure.\n  \u2713 A real git timeout (execFile killed) is classified as 'timeout' and therefore does NOT fall back to memory authors \u2014 the actual production failure mode, not only the injected-lookup seam.: Probe test (temporary file, removed after the run) mocking runGitAsync to throw an execFile-style error with killed=true: collectAuthorsForNamespaces returned [] with dbCalls [] and logged git=timeout -> 'Test Files 1 passed (1)' / 'Tests 1 passed (1)'. In-tree coverage of the same path: authorAggregation-no-swap-perf016.test.ts:180-195 ('contributes nothing when the git scan times out, even with memory rows present'), backed by errorText() at authorAggregation.ts:150-156 mapping killed/timeout messages to 'timeout'.\n  \u2713 The change does not regress the rest of the suite: full `npx vitest run` is green.: Full `npx vitest run` on the tree -> 'Test Files  298 passed (298)' / 'Tests  2504 passed (2504)', no failing files (log /tmp/perf016-full2.log).\nAll four given criteria and all three derived criteria pass: the header documents the served set, the no-swap rule is pinned by a green 16-test focused run and reachable from the mounted /users route, the committed evidence artifact records three identical 21-identity responses on the 288-namespace store, and tsc plus the full 298-suite/2504-test run match test-counts.json. [uncovered failure paths: failure mode 1 (A non-zero git exit whose stderr happens to contain 'not a git repository' is classified as verified-absent and falls back to memory authors): detected_by is empty \u2014 uncovered failure path]\n\nOverall: PASS \u2713",
+  "evaluated_at": "2026-11-17T11:00:46.168265",
+  "supersedes": null,
+  "superseded_by": null,
+  "evidence": {
+    "collected_at": "2026-11-17T11:00:46.233689+00:00",
+    "items": [
+      {
+        "name": "patch",
+        "label": "Landed commit patch",
+        "file": "commit.patch",
+        "bytes": 25131,
+        "truncated": false,
+        "source": "git show e848a96baeb6"
+      },
+      {
+        "name": "worktree",
+        "label": "Working-tree diff (graded)",
+        "file": "worktree.patch",
+        "bytes": 2054,
+        "truncated": false,
+        "source": "git diff HEAD (working tree)"
+      }
+    ],
+    "task_id": "PERF-016"
+  }
+}

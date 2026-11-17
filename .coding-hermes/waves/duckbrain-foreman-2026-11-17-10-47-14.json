@@ -1,0 +1,21 @@
+{
+  "tick": "duckbrain-foreman-2026-11-17-10-47-14",
+  "lane": "duckbrain-foreman",
+  "block": "PERF-016",
+  "block_state": "10/11 done before this tick; the single ready row PERF-016 was already implemented (60a081cc) but undelivered",
+  "slots": 4,
+  "slots_formula": "max(1, min(6, nproc - ceil(loadavg))) = max(1, min(6, 16 - ceil(11.42))) = 4; WAVE_BUDGET=9 is not binding",
+  "mode": "verification-only",
+  "serial_reason": "the block has ready=1 (singleton), so no independent pair exists to fan out; additionally the row's implementation was already committed, so the tick's work was verify + deliver, not build",
+  "workers": [],
+  "dispatch": [],
+  "wave_size": 0,
+  "no_dispatch_reason": "no implementation work remained: commit 60a081cc already contains the fix, its tests and the docstring; a worker would have produced a duplicate diff on the same files as a competing writer",
+  "selected_row": "PERF-016",
+  "implementation_commit": "60a081cc0df9d039209eb0a744fa2f04c7e2220c",
+  "evidence_artifact": ".coding-hermes/board/evidence-PERF-016-20261117.txt",
+  "verdict_artifact": ".coding-hermes/board/evidence-PERF-016-20261117-verdict.json",
+  "judge_run": "c0e090fa",
+  "result": "PERF-016 closed complete; verdict tier1 PASS / tier2 PASS / overall PASS",
+  "resumes_from": "duckbrain-foreman-2026-11-17-00-56-21"
+}

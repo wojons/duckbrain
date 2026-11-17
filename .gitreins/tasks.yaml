@@ -3507,3 +3507,30 @@ tasks:
   status: complete
   created_at: '2026-11-15T14:29:42.983774+00:00'
   completed_at: '2026-11-16T21:32:20.428366+00:00'
+- id: PERF-016
+  title: 'PERF-016: GET /users must never swap a namespace''s git identities for memory
+    authors when the git scan fails'
+  criteria:
+  - 'src/http/routes/users.ts documents the served author set: git identities from
+    namespaces whose scan SUCCEEDS, UNION memory-record authors only from namespaces
+    whose git repo is VERIFIED empty or absent, and NOTHING from a namespace whose
+    scan fails operationally (timeout, non-zero exit, I/O error). Grep-provable in
+    the file header.'
+  - 'src/http/routes/authorAggregation-no-swap-perf016.test.ts pins the no-swap rule
+    for a namespace carrying BOTH git authors and memory-record authors: an injected
+    lookup that rejects (timeout / operational error) yields no memory author and
+    never calls the memory lookup, while a resolved empty array still falls back.
+    Command: npx vitest run src/http/routes/authorAggregation-no-swap-perf016.test.ts
+    src/http/routes/authorAggregation-fallback-semantics.test.ts src/http/routes/users-perf014.test.ts
+    must pass.'
+  - '.coding-hermes/board/evidence-PERF-016-20261117.txt records the live acceptance
+    measurement on the daemon store /home/kara/.duckbrain-live/namespaces (288 namespace
+    dirs): three consecutive GET /users returning an IDENTICAL identity set, with
+    per-request latency, peak concurrent ''git log --all'' count, and the stated loadavg.
+    The artifact is committed and states identity sets identical across all three:
+    YES.'
+  - npx tsc -p tsconfig.build.json passes on the tree and test-counts.json matches
+    the live suite (a new suite was added).
+  status: complete
+  created_at: '2026-11-17T10:51:17.226231+00:00'
+  completed_at: '2026-11-17T10:53:00.188661+00:00'

@@ -1,0 +1,40 @@
+{
+  "tick": "duckbrain-foreman-2026-11-17-00-56-21",
+  "lane": "duckbrain-foreman",
+  "block": "PERF-016",
+  "block_state": "10/11 done; single remaining ready row PERF-016 (singleton) - serial path, no independent pair to fan out",
+  "slots": 3,
+  "slots_formula": "max(1, min(6, nproc - ceil(loadavg))) = max(1, min(6, 16 - ceil(12.13))) = 3; WAVE_BUDGET=5 caps at 3",
+  "mode": "serial",
+  "serial_reason": "block has ready=1 (singleton); independence impossible with one row - not a load decision",
+  "wave": [
+    {
+      "row": "PERF-016",
+      "title": "GET /users author set is load-dependent: failed per-namespace git scan swaps git authors for memory-record authors",
+      "scope": "option (c) from the row: keep git-else-memory semantics, make failed git scans distinguishable from verified-empty scans so a failure never swaps the source; document the served-set definition in the route docstring; pin with tests",
+      "worktree": "/home/kara/worktrees/duckbrain-PERF-016",
+      "branch": "wt/PERF-016",
+      "base": "origin/main",
+      "base_sha": "916e5c16",
+      "brief": "/home/kara/.hermes/cache/scratch/brief-PERF-016-2026-11-17-00-56-21.md",
+      "worker_model": "openai/gpt-6.1-terra",
+      "worker_provider": "xkiro",
+      "gitreins_task": "PERF-016",
+      "gitreins_status": "created+started before dispatch"
+    }
+  ],
+  "acceptance_foreman_owned": "three consecutive GET /users on the daemon store /home/kara/.duckbrain-live/namespaces (288 dirs) via a scratch instance on the merged-tree build: identical set across the three, stated loadavg, per-request latency, peak concurrent git log count",
+  "owner_decision_note": "the row's final-semantics choice ((a) git-only vs (b) full union w/ persistent index) remains an open owner decision; (c) is the status-quo-preserving fix that satisfies the row's acceptance criteria",
+  "status": "finished",
+  "finished_at": "2026-11-17T11:05:00Z",
+  "finished_by": "duckbrain-foreman-2026-11-17-10-47-14",
+  "outcome": "worker landed 60a081cc in /home/kara/worktrees/duckbrain-PERF-016 (branch wt/PERF-016) and it was merged into main, but this tick ended before push/judge/closeout - recovered and delivered by tick duckbrain-foreman-2026-11-17-10-47-14",
+  "proofs": {
+    "implementation_commit": "60a081cc0df9d039209eb0a744fa2f04c7e2220c",
+    "contained_in_main": "git merge-base --is-ancestor 60a081cc origin/main -> 0",
+    "judge_run": "c0e090fa",
+    "verdict": "tier1 PASS / tier2 PASS / overall PASS (persisted as .coding-hermes/board/evidence-PERF-016-20261117-verdict.json)",
+    "board_row": "PERF-016 complete, completed_at 2026-11-17T11:01:17Z",
+    "push_parity": "git rev-list --count origin/main..HEAD = 0"
+  }
+}
