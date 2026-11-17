@@ -7,7 +7,7 @@ import { describe, expect, it } from "vitest";
 import { collectAuthorsForNamespaces } from "./authorAggregation";
 
 describe("collectAuthorsForNamespaces", () => {
-  it("bounds concurrent git scans and preserves per-namespace fallback", async () => {
+  it("bounds concurrent git scans and keeps fallback to verified-empty namespaces", async () => {
     const namespaces = Array.from({ length: 5 }, (_, index) => ({
       path: `namespace-${index}`,
     }));
@@ -22,6 +22,8 @@ describe("collectAuthorsForNamespaces", () => {
         peakGitScans = Math.max(peakGitScans, activeGitScans);
         await new Promise((resolve) => setTimeout(resolve, 5));
         activeGitScans -= 1;
+        // A failing scan is not an empty one: this namespace must contribute
+        // nothing rather than swapping to its memory rows (PERF-016).
         if (namespacePath === "namespace-1") throw new Error("git timeout");
         if (namespacePath === "namespace-2") return [];
         return ["shared", namespacePath];
@@ -36,9 +38,8 @@ describe("collectAuthorsForNamespaces", () => {
     });
 
     expect(peakGitScans).toBe(2);
-    expect(dbCalls.sort()).toEqual(["namespace-1", "namespace-2"]);
+    expect(dbCalls.sort()).toEqual(["namespace-2"]);
     expect(users).toEqual([
-      "db-only",
       "fallback",
       "namespace-0",
       "namespace-3",

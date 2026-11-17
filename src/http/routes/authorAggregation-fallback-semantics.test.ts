@@ -1,7 +1,11 @@
 /**
  * PERF-015 regression: a namespace whose git scan SUCCEEDS must never leak
- * JSONL-only identities into the author set, while a git scan that is empty or
- * throws must fall back to the namespace's memory rows.
+ * JSONL-only identities into the author set, while a git scan that is verifiably
+ * empty (or has no repository) must fall back to the namespace's memory rows.
+ *
+ * PERF-016 sharpens the third case: a git scan that FAILS operationally
+ * (timeout, non-zero exit) contributes nothing at all — it must never fall back,
+ * because that swap is what made the served set load-dependent.
  *
  * The old route reached the same numbers only when fast git scans happened to
  * finish inside the timeout; under load some scans failed and the fallback then
@@ -47,18 +51,24 @@ describe("author aggregation git/fallback semantics", () => {
     expect(authors).toEqual(["Jsonl Only"]);
   });
 
-  it("falls back to memory rows when the git scan throws", async () => {
+  it("never falls back to memory rows when the git scan fails", async () => {
+    const dbCalls: string[] = [];
     const authors = await collectAuthorsForNamespaces(
       [{ path: "/ns/git-broken" }],
       {
         getGitAuthors: async () => {
           throw new Error("git log timed out");
         },
-        getDbAuthors: async () => ["Recovered Author"],
+        getDbAuthors: async (namespacePath) => {
+          dbCalls.push(namespacePath);
+          return ["Recovered Author"];
+        },
       },
     );
 
-    expect(authors).toEqual(["Recovered Author"]);
+    expect(authors).toEqual([]);
+    // The memory lookup is provably not consulted: a failure is not an empty result.
+    expect(dbCalls).toEqual([]);
   });
 
   it("unions per-namespace results deterministically regardless of order", async () => {

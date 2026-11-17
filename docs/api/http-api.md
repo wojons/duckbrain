@@ -191,9 +191,18 @@ and `--auth=none` see the full list.
 
 `GET /users`
 
-Returns the distinct authors across the caller's visible namespaces, aggregated
-from git commit history (falling back to JSONL memory data when a namespace has
-no git history).
+Returns the distinct authors across the caller's visible namespaces:
+git identities from every visible namespace whose git author scan succeeds,
+unioned with JSONL memory-record authors from namespaces whose git repository is
+verified empty or absent (an empty commit history, or a directory that is not a
+git repository).
+
+A namespace whose git scan **fails** operationally (timeout, non-zero exit, I/O
+error) contributes nothing to that request. A failure is never treated as an
+empty result, so it never swaps that namespace's source to memory records — that
+swap is what made the served set drift between identical requests under load.
+The skip is reported on stderr as
+`[author-scan] namespace=<p> git=<status> result=no-fallback-on-failure`.
 
 The author scan follows the caller's namespace grant (card t_667d7e6c): only
 the token's visible namespaces are scanned, so a scoped token neither learns

@@ -1,8 +1,24 @@
 /**
  * Users API Routes
  *
- * Extracts unique authors from namespace git commit history.
- * Falls back to DuckDB memory queries if git is unavailable.
+ * Served-set definition for GET /users:
+ *   - git identities from every visible namespace whose git author scan SUCCEEDS;
+ *   - UNION memory-record authors from namespaces whose git repository is
+ *     verified empty or absent — an empty commit history, a directory that is
+ *     not a git repository, or a namespace path that does not exist.
+ * A namespace whose git scan fails operationally (timeout, non-zero exit, I/O
+ * error) contributes NOTHING to that request: a failure is never treated as an
+ * empty result, so it can never swap the namespace's source to memory records.
+ *
+ * That last rule is what keeps the served set stable across identical
+ * consecutive requests under load; before it, a timed-out scan silently
+ * substituted memory authors and the served identity count drifted
+ * (recorded: 20, 45, 72, 73, 74, 77 identities from the same store).
+ *
+ * Owner-decision context: this is the documented CURRENT semantics. A different
+ * served-set definition (git-only, or a full union backed by a persistent index)
+ * is an open owner decision tracked on the board — do not change the rule here
+ * without that decision.
  */
 
 import { Router, Request, Response } from "express";

@@ -1,8 +1,13 @@
 /**
  * Author aggregation shared by the HTTP route and its fork-light worker.
  *
- * Git is tried first for each namespace. DuckDB is consulted only when that
- * namespace has no git authors, preserving the route's existing semantics.
+ * Git is tried first for each namespace. Memory records are consulted only when
+ * git is verifiably EMPTY (an empty scan, a namespace without a repository, or
+ * a namespace path that does not exist). A git scan that FAILS operationally
+ * (timeout, I/O error, non-zero exit) is not the same input as an empty one:
+ * that namespace contributes nothing for the request instead of silently
+ * swapping its source to memory records, so the served set cannot drift
+ * between identical consecutive requests under load.
  */
 
 import fs from "node:fs";
@@ -44,11 +49,33 @@ type DbScan = {
 };
 
 /**
+ * Statuses that prove git was actually consulted and has nothing to contribute:
+ * a scanned repository with no authors ("empty-success"), a directory that is
+ * not a git repository ("no-repo"), and a namespace path or git binary that does
+ * not exist ("enoent"). Only these may fall back to memory records.
+ *
+ * Every other status — "timeout", "non-zero:<message>" — is an operational
+ * failure, and an unknown status is treated the same way (fail closed: no
+ * source swap) so a future status cannot silently reintroduce the drift.
+ */
+const VERIFIED_ABSENT_GIT_STATUSES: ReadonlySet<string> = new Set([
+  "empty-success",
+  "no-repo",
+  "enoent",
+]);
+
+/** True when an empty git result is a verified absence rather than a failure. */
+export function gitStatusAllowsMemoryFallback(status: string): boolean {
+  return VERIFIED_ABSENT_GIT_STATUSES.has(status);
+}
+
+/**
  * Aggregate authors with a bounded worker pool.
  *
  * A failed git scan is not the same as an empty successful scan: the detailed
- * result is retained for the stderr diagnostic, while both paths still use
- * the existing namespace-local DuckDB fallback.
+ * status decides whether the namespace's memory records are consulted at all.
+ * Failures keep the namespace out of the served set for this request; they never
+ * swap the source, which is what made the served set load-dependent.
  */
 export async function collectAuthorsForNamespaces(
   namespaces: AuthorNamespace[],
@@ -73,14 +100,20 @@ export async function collectAuthorsForNamespaces(
       const git = getGitAuthors
         ? await lookupInjected(getGitAuthors, namespace.path)
         : await getAuthorsFromGitDetailed(namespace.path);
-      const db = git.authors.length > 0
+      const gitFailed = !gitStatusAllowsMemoryFallback(git.status) && git.status !== "success";
+      const db = git.authors.length > 0 || gitFailed
         ? { authors: [], manifest: "not-needed", partitions: "not-needed", duckdbError: "none" }
         : getDbAuthors
           ? await lookupInjectedDb(getDbAuthors, namespace.path)
           : await getAuthorsFromDbDetailed(namespace.path);
       const authors = git.authors.length > 0 ? git.authors : db.authors;
 
-      if (authors.length === 0) {
+      if (gitFailed) {
+        console.error(
+          `[author-scan] namespace=${namespace.path} git=${git.status} ` +
+            `result=no-fallback-on-failure`,
+        );
+      } else if (authors.length === 0) {
         console.error(
           `[author-scan] namespace=${namespace.path} git=${git.status} ` +
             `manifest=${db.manifest} partitions=${db.partitions} ` +
@@ -99,9 +132,13 @@ export async function collectAuthorsForNamespaces(
 
 async function lookupInjected(lookup: AuthorLookup, namespacePath: string): Promise<GitScan> {
   try {
-    return { authors: await lookup(namespacePath), status: "injected" };
+    const authors = await lookup(namespacePath);
+    // A RESOLVED lookup is a completed scan: an empty array is verified empty
+    // (fallback allowed), a non-empty one is a successful scan. A REJECTED
+    // lookup is an operational failure and must never swap the source.
+    return { authors, status: authors.length > 0 ? "success" : "empty-success" };
   } catch (error) {
-    return { authors: [], status: `non-zero:${errorText(error)}` };
+    return { authors: [], status: classifyGitFailure(error) };
   }
 }
 
@@ -132,6 +169,18 @@ function errorText(error: unknown): string {
   return message.replace(/\s+/g, " ").slice(0, 300);
 }
 
+/**
+ * Map a thrown git scan to its status. "no-repo" is the verified-absent case
+ * git reports for a path that is not (and is not inside) a repository; it is
+ * deliberately distinct from a failing scan so it may fall back to memory.
+ */
+function classifyGitFailure(error: unknown): string {
+  const text = errorText(error);
+  if (text === "timeout" || text === "enoent") return text;
+  if (/not a git repository/i.test(text)) return "no-repo";
+  return `non-zero:${text}`;
+}
+
 /** Extract unique authors from a namespace git repository. */
 async function getAuthorsFromGitDetailed(repoPath: string): Promise<GitScan> {
   try {
@@ -147,7 +196,7 @@ async function getAuthorsFromGitDetailed(repoPath: string): Promise<GitScan> {
       status: "success",
     };
   } catch (error) {
-    return { authors: [], status: errorText(error) === "timeout" ? "timeout" : errorText(error) === "enoent" ? "enoent" : `non-zero:${errorText(error)}` };
+    return { authors: [], status: classifyGitFailure(error) };
   }
 }
 
