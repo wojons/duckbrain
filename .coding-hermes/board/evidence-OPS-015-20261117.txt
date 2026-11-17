@@ -1,0 +1,74 @@
+OPS-015 evidence — duckbrain-http.service start-limit misconfiguration
+captured 2026-11-17T17:39:15-05:00
+
+$ git -C /home/kara/duckbrain rev-parse HEAD; git -C /home/kara/duckbrain rev-parse origin/main; git -C /home/kara/duckbrain show origin/main:.coding-hermes/board/events.jsonl | grep -c 'duckbrain-ops-2026-11-17-22-07-54'
+e16c4c2cc34cd2b9b9e161b7c5e2b7d9ffa1f96b
+e16c4c2cc34cd2b9b9e161b7c5e2b7d9ffa1f96b
+1
+[rc=0]
+
+$ sed -n '1,20p' /home/kara/.config/systemd/user/duckbrain-http.service.d/10-restart-always.conf
+[Service]
+# OPS-001: graceful SIGTERM exits 0; on-failure treats that as success and leaves
+# :3000 dark forever. Restart=always self-recovers from BOTH crash and graceful exits.
+Restart=always
+RestartSec=3
+StartLimitIntervalSec=300
+StartLimitBurst=10
+[rc=0]
+
+$ grep -n 'StartLimit' /home/kara/.config/systemd/user/duckbrain-http.service.d/*.conf
+/home/kara/.config/systemd/user/duckbrain-http.service.d/10-restart-always.conf:6:StartLimitIntervalSec=300
+/home/kara/.config/systemd/user/duckbrain-http.service.d/10-restart-always.conf:7:StartLimitBurst=10
+[rc=0]
+
+$ journalctl --user -u duckbrain-http --no-pager | grep -i "Unknown key 'StartLimitIntervalSec'" | tail -3
+Nov 17 11:30:17 karaHermes-mde-7840hs systemd[7126]: /home/kara/.config/systemd/user/duckbrain-http.service.d/10-restart-always.conf:6: Unknown key 'StartLimitIntervalSec' in section [Service], ignoring.
+Nov 17 15:53:58 karaHermes-mde-7840hs systemd[7438]: /home/kara/.config/systemd/user/duckbrain-http.service.d/10-restart-always.conf:6: Unknown key 'StartLimitIntervalSec' in section [Service], ignoring.
+Nov 17 16:01:31 karaHermes-mde-7840hs systemd[7438]: /home/kara/.config/systemd/user/duckbrain-http.service.d/10-restart-always.conf:6: Unknown key 'StartLimitIntervalSec' in section [Service], ignoring.
+[rc=0]
+
+$ systemctl --user show duckbrain-http -p StartLimitIntervalUSec -p StartLimitBurst -p Restart -p RestartUSec -p MainPID -p ActiveEnterTimestamp -p NRestarts -p ActiveState -p SubState
+ActiveState=active
+SubState=running
+ActiveEnterTimestamp=Tue 2026-11-17 15:53:58 -05
+StartLimitIntervalUSec=10s
+StartLimitBurst=10
+Restart=always
+RestartUSec=3s
+MainPID=7732
+NRestarts=0
+[rc=0]
+
+$ systemctl --user show -p DefaultStartLimitIntervalUSec -p DefaultStartLimitBurst
+DefaultStartLimitIntervalUSec=10s
+DefaultStartLimitBurst=5
+[rc=0]
+
+$ journalctl --user -u duckbrain-http --since '2026-11-17 15:45' --until '2026-11-17 16:05' --no-pager | grep -E 'Started|Main process exited|Failed at step CGROUP|Unknown key' | tail -14
+Nov 17 15:49:31 karaHermes-mde-7840hs systemd[7126]: duckbrain-http.service: Main process exited, code=exited, status=219/CGROUP
+Nov 17 15:49:35 karaHermes-mde-7840hs systemd[7126]: Started duckbrain-http.service - DuckBrain HTTP Server (memory MCP — HTTP mode for scheduler sync).
+Nov 17 15:49:40 karaHermes-mde-7840hs (node)[4119968]: duckbrain-http.service: Failed at step CGROUP spawning /usr/bin/node: Permission denied
+Nov 17 15:49:40 karaHermes-mde-7840hs systemd[7126]: duckbrain-http.service: Main process exited, code=exited, status=219/CGROUP
+Nov 17 15:49:45 karaHermes-mde-7840hs systemd[7126]: Started duckbrain-http.service - DuckBrain HTTP Server (memory MCP — HTTP mode for scheduler sync).
+Nov 17 15:49:52 karaHermes-mde-7840hs (node)[4121294]: duckbrain-http.service: Failed at step CGROUP spawning /usr/bin/node: Permission denied
+Nov 17 15:49:55 karaHermes-mde-7840hs systemd[7126]: duckbrain-http.service: Main process exited, code=exited, status=219/CGROUP
+Nov 17 15:50:07 karaHermes-mde-7840hs systemd[7126]: Started duckbrain-http.service - DuckBrain HTTP Server (memory MCP — HTTP mode for scheduler sync).
+Nov 17 15:50:07 karaHermes-mde-7840hs (node)[4124688]: duckbrain-http.service: Failed at step CGROUP spawning /usr/bin/node: Permission denied
+Nov 17 15:50:07 karaHermes-mde-7840hs systemd[7126]: duckbrain-http.service: Main process exited, code=exited, status=219/CGROUP
+Nov 17 15:50:21 karaHermes-mde-7840hs systemd[7126]: Started duckbrain-http.service - DuckBrain HTTP Server (memory MCP — HTTP mode for scheduler sync).
+Nov 17 15:53:58 karaHermes-mde-7840hs systemd[7438]: /home/kara/.config/systemd/user/duckbrain-http.service.d/10-restart-always.conf:6: Unknown key 'StartLimitIntervalSec' in section [Service], ignoring.
+Nov 17 15:53:58 karaHermes-mde-7840hs systemd[7438]: Started duckbrain-http.service - DuckBrain HTTP Server (memory MCP — HTTP mode for scheduler sync).
+Nov 17 16:01:31 karaHermes-mde-7840hs systemd[7438]: /home/kara/.config/systemd/user/duckbrain-http.service.d/10-restart-always.conf:6: Unknown key 'StartLimitIntervalSec' in section [Service], ignoring.
+[rc=0]
+
+$ curl -s -o /dev/null -w 'GET /health -> http=%{http_code} t=%{time_total}\n' --max-time 10 http://127.0.0.1:3000/health
+GET /health -> http=200 t=0.002941
+[rc=0]
+
+$ curl -s --max-time 10 http://127.0.0.1:3000/health
+{"status":"healthy","uptime":6317.647826669,"timestamp":"2026-11-17T22:39:16.420Z","embedding":{"provider":"openai","model":"qwen/qwen3-embedding-8b","healthy":true,"providers":[{"id":"openai","healthy":true,"note":"ok"}]},"keys_error":null,"durability":{"defaultMode":"buffered","overrides":{}},"deadline_exceeded":[]}[rc=0]
+
+$ ss -lntp 2>/dev/null | grep ':3000' | head -3
+LISTEN 0      511                                   0.0.0.0:3000       0.0.0.0:*    users:(("node",pid=7732,fd=21))            
+[rc=0]
