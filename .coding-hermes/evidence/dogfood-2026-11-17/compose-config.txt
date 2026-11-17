@@ -1,0 +1,99 @@
+name: qa-duckbrain
+services:
+  duckbrain-api:
+    build:
+      context: /home/bunker-faf390f4/qa-duckbrain
+      dockerfile: Dockerfile.dev
+    command:
+      - http
+      - --port=3000
+      - --bind-all
+      - --auth=none
+    entrypoint:
+      - npx
+      - tsx
+      - bin/duckbrain.ts
+    environment:
+      DUCKBRAIN_API_PORT: "3000"
+      DUCKBRAIN_DATA_DIR: /data
+      DUCKBRAIN_UI_PORT: "8989"
+      NODE_ENV: development
+    healthcheck:
+      test:
+        - CMD
+        - curl
+        - -f
+        - http://localhost:3000/api/namespaces
+      timeout: 5s
+      interval: 10s
+      retries: 5
+      start_period: 10s
+    networks:
+      duckbrain-net: null
+    ports:
+      - mode: ingress
+        target: 3000
+        published: "3000"
+        protocol: tcp
+    volumes:
+      - type: volume
+        source: duckbrain-data
+        target: /data
+        volume: {}
+      - type: bind
+        source: /home/bunker-faf390f4/qa-duckbrain
+        target: /app
+        bind:
+          create_host_path: true
+      - type: volume
+        target: /app/node_modules
+        volume: {}
+  duckbrain-ui:
+    build:
+      context: /home/bunker-faf390f4/qa-duckbrain
+      dockerfile: Dockerfile.dev
+    command:
+      - npx
+      - vite
+      - --port
+      - "8989"
+      - --host
+      - 0.0.0.0
+    depends_on:
+      duckbrain-api:
+        condition: service_healthy
+        required: true
+    environment:
+      DUCKBRAIN_API_HOST: duckbrain-api
+      DUCKBRAIN_API_PORT: "3000"
+      DUCKBRAIN_UI_PORT: "8989"
+      NODE_ENV: development
+    networks:
+      duckbrain-net: null
+    ports:
+      - mode: ingress
+        target: 8989
+        published: "8989"
+        protocol: tcp
+    volumes:
+      - type: bind
+        source: /home/bunker-faf390f4/qa-duckbrain
+        target: /app
+        bind:
+          create_host_path: true
+      - type: volume
+        target: /app/node_modules
+        volume: {}
+      - type: bind
+        source: /home/bunker-faf390f4/qa-duckbrain/packages/ui
+        target: /app/packages/ui
+        bind:
+          create_host_path: true
+    working_dir: /app/packages/ui
+networks:
+  duckbrain-net:
+    name: qa-duckbrain_duckbrain-net
+    driver: bridge
+volumes:
+  duckbrain-data:
+    name: qa-duckbrain_duckbrain-data

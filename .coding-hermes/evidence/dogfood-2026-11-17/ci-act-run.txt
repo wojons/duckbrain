@@ -1,0 +1,47 @@
+time="2026-11-17T12:05:15Z" level=info msg="Using docker host 'unix:///run/bunker/faf390f4/docker.sock', and daemon socket 'unix:///run/bunker/faf390f4/docker.sock'"
+[CI/test] ⭐ Run Set up job
+[CI/test] 🚀  Start image=catthehacker/ubuntu:act-latest
+[CI/test]   🐳  docker pull image=catthehacker/ubuntu:act-latest platform= username= forcePull=true
+[CI/test]   🐳  docker create image=catthehacker/ubuntu:act-latest platform= entrypoint=["tail" "-f" "/dev/null"] cmd=[] network="host"
+[CI/test]   🐳  docker run image=catthehacker/ubuntu:act-latest platform= entrypoint=["tail" "-f" "/dev/null"] cmd=[] network="host"
+[CI/test]   🐳  docker exec cmd=[node --no-warnings -e console.log(process.execPath)] user= workdir=
+[CI/test]   ✅  Success - Set up job
+[CI/test]   ☁  git clone 'https://github.com/pnpm/action-setup' # ref=v4
+[CI/test]   ☁  git clone 'https://github.com/actions/setup-node' # ref=v4
+[CI/test]   ☁  git clone 'https://github.com/actions/cache' # ref=v4
+[CI/test] ⭐ Run Main actions/checkout@v4
+[CI/test]   🐳  docker cp src=/home/bunker-faf390f4/qa-duckbrain/. dst=/home/bunker-faf390f4/qa-duckbrain
+[CI/test]   ✅  Success - Main actions/checkout@v4 [1.321623066s]
+[CI/test] ⭐ Run Main Set up pnpm
+[CI/test]   🐳  docker cp src=/home/bunker-faf390f4/.cache/act/pnpm-action-setup@v4/ dst=/var/run/act/actions/pnpm-action-setup@v4/
+[CI/test]   🐳  docker exec cmd=[/opt/acttoolcache/node/24.22.3/x64/bin/node /var/run/act/actions/pnpm-action-setup@v4/dist/index.js] user= workdir=
+[CI/test]   ❓  ::group::Running self-installer...
+[CI/test]   ❓  ::endgroup::
+[CI/test]   ✅  Success - Main Set up pnpm [4.757698118s]
+[CI/test]   ⚙  ::set-env:: PNPM_HOME=/root/setup-pnpm/node_modules/.bin
+[CI/test]   ⚙  ::set-output:: dest=/root/setup-pnpm
+[CI/test]   ⚙  ::set-output:: bin_dest=/root/setup-pnpm/node_modules/.bin
+[CI/test]   ⚙  ::add-path:: /root/setup-pnpm/node_modules/.bin
+[CI/test]   ⚙  ::add-path:: /root/setup-pnpm/node_modules/.bin
+[CI/test] ⭐ Run Main Use Node.js 22
+[CI/test]   🐳  docker cp src=/home/bunker-faf390f4/.cache/act/actions-setup-node@v4/ dst=/var/run/act/actions/actions-setup-node@v4/
+[CI/test]   🐳  docker exec cmd=[/opt/acttoolcache/node/24.22.3/x64/bin/node /var/run/act/actions/actions-setup-node@v4/dist/setup/index.js] user= workdir=
+[CI/test]   ❓  ::group::Environment details
+[CI/test]   ❓  ::endgroup::
+[CI/test]   ❓ add-matcher /run/act/actions/actions-setup-node@v4/.github/tsc.json
+[CI/test]   ❓ add-matcher /run/act/actions/actions-setup-node@v4/.github/eslint-stylish.json
+[CI/test]   ❓ add-matcher /run/act/actions/actions-setup-node@v4/.github/eslint-compact.json
+[CI/test]   ✅  Success - Main Use Node.js 22 [6.231831676s]
+[CI/test]   ⚙  ::set-output:: node-version=v22.23.5
+[CI/test]   ⚙  ::add-path:: /opt/hostedtoolcache/node/22.23.5/x64/bin
+[CI/test] ⭐ Run Main Install from a clean store and smoke-test the CLI
+[CI/test]   🐳  docker exec cmd=[bash -e /var/run/act/workflow/3] user= workdir=
+[CI/test]   ❌  Failure - Main Install from a clean store and smoke-test the CLI [11.235002793s]
+[CI/test] exitcode '1': failure
+[CI/test] ⭐ Run Post Set up pnpm
+[CI/test]   🐳  docker exec cmd=[/opt/acttoolcache/node/24.22.3/x64/bin/node /var/run/act/actions/pnpm-action-setup@v4/dist/index.js] user= workdir=
+[CI/test]   ✅  Success - Post Set up pnpm [319.463503ms]
+[CI/test] ⭐ Run Complete job
+[CI/test]   ✅  Success - Complete job
+[CI/test] 🏁  Job failed
+Error: Job 'test' failed
