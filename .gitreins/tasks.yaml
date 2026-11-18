@@ -3534,3 +3534,12 @@ tasks:
   status: complete
   created_at: '2026-11-17T10:51:17.226231+00:00'
   completed_at: '2026-11-17T10:53:00.188661+00:00'
+- id: OPS-015
+  title: 'duckbrain-http restart brake: move StartLimit keys to a [Unit] drop-in'
+  criteria:
+  - StartLimitIntervalSec=300 and StartLimitBurst=10 live in a [Unit]-section drop-in;
+    systemctl --user show duckbrain-http -p StartLimitIntervalUSec reports 300s; journalctl
+    shows no Unknown-key warning after daemon-reload; bounded crash-loop rehearsal
+    on a SCRATCH unit ends start-limit-hit/ActiveState=failed; live daemon never restarted
+  status: in_progress
+  created_at: '2026-11-18T13:51:10.597542+00:00'
