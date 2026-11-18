@@ -1,0 +1,49 @@
+OPS-015 evidence — DuckBrain HTTP user unit start-limit brake
+Date: 2026-11-18
+
+Host-config change
+- Added /home/kara/.config/systemd/user/duckbrain-http.service.d/10-restart-brake.conf with StartLimitIntervalSec=300 and StartLimitBurst=10 in [Unit].
+- Removed the two StartLimit* keys from 10-restart-always.conf; preserved the OPS-001 comment, Restart=always, and RestartSec=3.
+- Ran `systemctl --user daemon-reload` (reload only; no service restart).
+
+(a) Effective live unit setting after daemon-reload
+$ systemctl --user show duckbrain-http -p StartLimitIntervalUSec
+StartLimitIntervalUSec=5min
+
+(b) Unknown-key warning check after daemon-reload
+$ journalctl --user -u duckbrain-http --since '-5 minutes' --no-pager | grep -F 'Unknown key StartLimitIntervalSec' || printf '%s\n' 'NO_MATCHING_UNKNOWN_KEY_WARNINGS'
+NO_MATCHING_UNKNOWN_KEY_WARNINGS
+
+(c) Scratch transient crash-loop rehearsal — live duckbrain-http was not used
+Scratch unit: duckbrain-ops015-brake-probe.service; ExecStart=/bin/false; Restart=always; RestartSec=3; StartLimitIntervalSec=300; StartLimitBurst=10. Started via systemd-run and observed after 30 seconds.
+$ systemctl --user show duckbrain-ops015-brake-probe.service -p ActiveState -p Result -p NRestarts -p StartLimitIntervalUSec -p StartLimitBurst
+ActiveState=failed
+StartLimitIntervalUSec=5min
+StartLimitBurst=10
+Result=exit-code
+NRestarts=10
+
+The full journal output from `journalctl --user -u duckbrain-ops015-brake-probe.service --since '-3 minutes' --no-pager` included:
+Nov 18 15:06:34 karaHermes-mde-7840hs systemd[2622]: duckbrain-ops015-brake-probe.service: Scheduled restart job, restart counter is at 10.
+Nov 18 15:06:34 karaHermes-mde-7840hs systemd[2622]: duckbrain-ops015-brake-probe.service: Start request repeated too quickly.
+Nov 18 15:06:34 karaHermes-mde-7840hs systemd[2622]: duckbrain-ops015-brake-probe.service: Failed with result 'exit-code'.
+Nov 18 15:06:34 karaHermes-mde-7840hs systemd[2622]: Failed to start duckbrain-ops015-brake-probe.service - [systemd-run] /bin/false.
+
+Systemd reported Result=exit-code (the final /bin/false result), not Result=start-limit-hit, despite recording `Start request repeated too quickly`, NRestarts=10, and ActiveState=failed. The requested Result value was not produced by this manager. An attempted `systemctl --user stop` cleanup command was blocked by the command safety gate before execution; the unit had already failed at the limit. `systemctl --user reset-failed duckbrain-ops015-brake-probe.service` succeeded, and the follow-up showed LoadState=not-found, ActiveState=inactive, Result=success (transient unit removed).
+
+(d) Live daemon state before work (captured before host-config edits)
+$ systemctl --user show duckbrain-http -p ActiveState -p NRestarts -p ExecMainStartTimestamp
+ActiveState=active
+NRestarts=0
+ExecMainStartTimestamp=Wed 2026-11-18 13:05:06 -05
+
+Live daemon state after reload and rehearsal
+$ systemctl --user show duckbrain-http -p ActiveState -p NRestarts -p ExecMainStartTimestamp
+ActiveState=active
+NRestarts=0
+ExecMainStartTimestamp=Wed 2026-11-18 13:05:06 -05
+
+The service remained active, NRestarts stayed 0, and ExecMainStartTimestamp remained unchanged. No stop, kill, restart, or crash rehearsal was directed at duckbrain-http.service.
+
+Documentation check
+`docs/guide/deployment.md` documents the StartLimit values but not their section placement; no documentation edit was needed for this host-config fix.
