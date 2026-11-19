@@ -1,0 +1,24 @@
+{
+  "wave_id": "duckbrain-foreman-2026-11-18-19-30-08",
+  "tick_id": "duckbrain-foreman-2026-11-18-19-30-08",
+  "block": "OPS-015",
+  "mode": "serial-fallback-load",
+  "slots_computed": 1,
+  "slots_formula": "max(1, min(6, nproc(16) - ceil(loadavg(14.19)))) = 1",
+  "wave_budget": 9,
+  "workers": [
+    {
+      "row": "OPS-015",
+      "worktree": "/home/kara/worktrees/duckbrain-OPS-015",
+      "branch": "wt/OPS-015",
+      "base_sha": "82203bf2",
+      "brief": "/tmp/brief-OPS-015.txt",
+      "model": "openai/gpt-6.1-terra",
+      "provider": "xkiro",
+      "status": "dispatched",
+      "disposition": "resumed-crashed-session (gitreins task OPS-015 was started 13:51Z today by a session that died with zero commits; adopted per foreman clause 15)"
+    }
+  ],
+  "residue_commit": "34018245",
+  "notes": "Box loaded (loadavg 14.19 on 16 cores) -> 1 slot. Block OPS-015 has exactly 1 ready row (14/15 done)."
+}
