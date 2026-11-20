@@ -692,12 +692,17 @@ export function createHttpServer(options: HttpServerOptions = {}): Express {
     );
     res.setHeader(
       "Access-Control-Allow-Headers",
-      "Content-Type, Authorization, X-API-Key, Last-Event-ID, Accept",
+      // REST-RANGE-001: `Range` is NOT a CORS-safelisted request header, so a
+      // browser `.range()` fetch preflights unless it is listed here.
+      "Content-Type, Authorization, X-API-Key, Last-Event-ID, Accept, Range",
     );
     // Response headers a browser app must be able to READ, not merely receive.
     res.setHeader(
       "Access-Control-Expose-Headers",
-      "X-Durability, X-Durability-Configured, X-Durability-Degraded, X-Total-Count, X-RateLimit-Limit, X-RateLimit-Remaining",
+      // REST-RANGE-001: without `Content-Range` here, JS `headers.get(...)`
+      // reads null even though the header arrived — a browser SDK would be
+      // unable to see the page window it just fetched.
+      "X-Durability, X-Durability-Configured, X-Durability-Degraded, X-Total-Count, Content-Range, X-RateLimit-Limit, X-RateLimit-Remaining",
     );
     res.setHeader("Access-Control-Max-Age", "600");
 

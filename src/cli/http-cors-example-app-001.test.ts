@@ -190,6 +190,25 @@ describe("EXAMPLE-APP-001 CORS: a cross-origin app can drive the table API", () 
     ).toLowerCase();
     expect(exposed).toContain("x-durability");
     expect(exposed).toContain("x-total-count");
+    // REST-RANGE-001: a browser SDK reads the served page window off
+    // Content-Range; without it in Expose-Headers, `headers.get()` is null.
+    expect(exposed).toContain("content-range");
+  });
+
+  it("allows the Range request header a browser .range() fetch sends", async () => {
+    // `Range` is not a CORS-safelisted request header, so the preflight must
+    // name it or the browser blocks the call before it is ever made.
+    const reply = await preflight(
+      `/api/ns/${NS}/tables/cards`,
+      "x-api-key,range",
+      "GET",
+    );
+    expect(reply.status).toBe(204);
+    const allowed = (reply.headers.get("access-control-allow-headers") ?? "")
+      .toLowerCase()
+      .split(",")
+      .map((token) => token.trim());
+    expect(allowed).toContain("range");
   });
 
   it("still serves an authenticated write+read from the cross-origin caller", async () => {

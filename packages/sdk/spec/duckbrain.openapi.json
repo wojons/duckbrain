@@ -1216,14 +1216,25 @@
             }
           },
           {
-            "description": "`count=exact` adds the X-Total-Count response header (same as Prefer: count=exact).",
+            "description": "`exact` | `planned` | `estimated` — asks for the total row count. The total is reported as the `Content-Range` denominator and in `X-Total-Count`. `planned` and `estimated` are served as the EXACT count: a JSONL table scan has no planner estimate to report, and an exact total is a superset of the number those modes ask for (see docs/api/http-api.md).",
             "in": "query",
             "name": "count",
             "required": false,
             "schema": {
               "enum": [
-                "exact"
+                "exact",
+                "planned",
+                "estimated"
               ],
+              "type": "string"
+            }
+          },
+          {
+            "description": "Inclusive row window for paging — exactly what postgrest-js `.range(from, to)` sends. `Range: 0-9` returns rows 0..9 and translates to `offset=0&limit=10`; it outranks `limit`/`offset` when both are present, and the 1000-row cap still clamps. An open-ended `Range: 10-` reads one page from row 10. A malformed window is 400 VALIDATION_ERROR.",
+            "in": "header",
+            "name": "Range",
+            "required": false,
+            "schema": {
               "type": "string"
             }
           }
@@ -1260,7 +1271,21 @@
                 }
               }
             },
-            "description": "Rows (JSON array, or CSV with Accept: text/csv)"
+            "description": "Rows (JSON array, or CSV with Accept: text/csv)",
+            "headers": {
+              "Content-Range": {
+                "description": "The row window served: `<first>-<last>/<total|*>`, or `*/<total|*>` when the window is past the end of the result (the body is then `[]`). The denominator is the exact total when `count` was requested, `*` otherwise.",
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "X-Total-Count": {
+                "description": "Exact number of matching rows before limit/offset. Present when the request asked for a count (`Prefer: count=*` or `?count=*`).",
+                "schema": {
+                  "type": "integer"
+                }
+              }
+            }
           }
         },
         "summary": "Select rows from 'lane_scores'"
@@ -1487,14 +1512,25 @@
             }
           },
           {
-            "description": "`count=exact` adds the X-Total-Count response header (same as Prefer: count=exact).",
+            "description": "`exact` | `planned` | `estimated` — asks for the total row count. The total is reported as the `Content-Range` denominator and in `X-Total-Count`. `planned` and `estimated` are served as the EXACT count: a JSONL table scan has no planner estimate to report, and an exact total is a superset of the number those modes ask for (see docs/api/http-api.md).",
             "in": "query",
             "name": "count",
             "required": false,
             "schema": {
               "enum": [
-                "exact"
+                "exact",
+                "planned",
+                "estimated"
               ],
+              "type": "string"
+            }
+          },
+          {
+            "description": "Inclusive row window for paging — exactly what postgrest-js `.range(from, to)` sends. `Range: 0-9` returns rows 0..9 and translates to `offset=0&limit=10`; it outranks `limit`/`offset` when both are present, and the 1000-row cap still clamps. An open-ended `Range: 10-` reads one page from row 10. A malformed window is 400 VALIDATION_ERROR.",
+            "in": "header",
+            "name": "Range",
+            "required": false,
+            "schema": {
               "type": "string"
             }
           }
@@ -1538,7 +1574,21 @@
                 }
               }
             },
-            "description": "Rows (JSON array, or CSV with Accept: text/csv)"
+            "description": "Rows (JSON array, or CSV with Accept: text/csv)",
+            "headers": {
+              "Content-Range": {
+                "description": "The row window served: `<first>-<last>/<total|*>`, or `*/<total|*>` when the window is past the end of the result (the body is then `[]`). The denominator is the exact total when `count` was requested, `*` otherwise.",
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "X-Total-Count": {
+                "description": "Exact number of matching rows before limit/offset. Present when the request asked for a count (`Prefer: count=*` or `?count=*`).",
+                "schema": {
+                  "type": "integer"
+                }
+              }
+            }
           }
         },
         "summary": "Select rows from 'notes'"

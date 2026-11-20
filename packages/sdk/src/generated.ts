@@ -199,8 +199,8 @@ export interface ListLaneScoresArgs {
     limit?: number;
     /** Row offset for paging. */
     offset?: number;
-    /** `count=exact` adds the X-Total-Count response header (same as Prefer: count=exact). */
-    count?: "exact";
+    /** `exact` | `planned` | `estimated` — asks for the total row count. The total is reported as the `Content-Range` denominator and in `X-Total-Count`. `planned` and `estimated` are served as the EXACT count: a JSONL table scan has no planner estimate to report, and an exact total is a superset of the number those modes ask for (see docs/api/http-api.md). */
+    count?: "exact" | "planned" | "estimated";
   };
 }
 
@@ -245,8 +245,8 @@ export interface ListNotesArgs {
     limit?: number;
     /** Row offset for paging. */
     offset?: number;
-    /** `count=exact` adds the X-Total-Count response header (same as Prefer: count=exact). */
-    count?: "exact";
+    /** `exact` | `planned` | `estimated` — asks for the total row count. The total is reported as the `Content-Range` denominator and in `X-Total-Count`. `planned` and `estimated` are served as the EXACT count: a JSONL table scan has no planner estimate to report, and an exact total is a superset of the number those modes ask for (see docs/api/http-api.md). */
+    count?: "exact" | "planned" | "estimated";
   };
 }
 

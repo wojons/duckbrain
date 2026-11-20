@@ -25,6 +25,19 @@
  *                                              Prefer: count=exact →
  *                                              X-Total-Count,
  *                                              Accept: text/csv → CSV
+ *
+ *   REST-RANGE-001: every GET /:table answers with `Content-Range`. The
+ *   `Range: <from>-<to>` request header (what postgrest-js `.range(from, to)`
+ *   sends) translates onto limit/offset — `offset=from`,
+ *   `limit=to-from+1` — and the response header reports the window that was
+ *   actually returned plus the total when it is known, `*` otherwise. The
+ *   header is emitted on EVERY table read, not only under `Prefer: count=*`,
+ *   because that is what makes an SDK client's paging loop terminate: without
+ *   it every page looked identical and a `.range()` consumer re-read page 1
+ *   forever. `count=planned`/`count=estimated` are ACCEPTED and served as an
+ *   exact count (docs/api/http-api.md documents the substitution: a JSONL scan
+ *   has no planner estimate to report, and an exact total is a superset of the
+ *   number those modes ask for).
  *   POST   /api/ns/:ns/tables/:table          — insert (JSON object /
  *                                              array / NDJSON)
  *   PATCH  /api/ns/:ns/tables/:table?pk=eq.v  — update rows by primary key
@@ -130,14 +143,88 @@ function param(req: Request, name: string): string {
   return Array.isArray(p) ? p.join("/") : String(p ?? "");
 }
 
-/** `Prefer: count=exact` header OR `?count=exact`. */
-function wantsExactCount(req: Request): boolean {
+/**
+ * `Prefer: count=exact` header OR `?count=exact` (REST-RANGE-001 extended this
+ * to `planned` / `estimated`, which are served as an exact count).
+ */
+export type RequestedCountMode = "exact" | "planned" | "estimated";
+
+const COUNT_VALUE = /count\s*=\s*(exact|planned|estimated)/i;
+
+function countModeOf(value: unknown): RequestedCountMode | null {
+  if (typeof value !== "string") return null;
+  const match = value.match(/^(exact|planned|estimated)$/i);
+  return match ? (match[1]!.toLowerCase() as RequestedCountMode) : null;
+}
+
+function requestedCountMode(req: Request): RequestedCountMode | null {
+  const query = req.query.count;
+  const fromQuery = countModeOf(Array.isArray(query) ? query[0] : query);
+  if (fromQuery !== null) return fromQuery;
   const prefer = req.headers["prefer"];
-  if (typeof prefer === "string" && /count\s*=\s*exact/i.test(prefer)) {
-    return true;
+  if (typeof prefer !== "string") return null;
+  const match = prefer.match(COUNT_VALUE);
+  return match ? countModeOf(match[1]) : null;
+}
+
+/**
+ * REST-RANGE-001 — a `Range` request header parsed into an inclusive row
+ * window. PostgREST (and postgrest-js `.range(from, to)`) addresses ROWS, so an
+ * optional unit prefix (`items=` / `bytes=`) is accepted and ignored; the bare
+ * `from-to` form is the canonical spelling. An open-ended `10-` means "from row
+ * 10, at most one page" — the default limit then applies.
+ *
+ * A malformed window is a 400 rather than a silent full-table read: the whole
+ * point of this header is that a paginating client believes it is paging.
+ */
+export interface RequestedRowRange {
+  from: number;
+  to: number | null;
+}
+
+export function parseRangeHeader(raw: unknown): RequestedRowRange | null {
+  if (typeof raw !== "string") return null;
+  const value = raw.trim();
+  if (value === "") return null;
+  const window = value.replace(/^[A-Za-z]+\s*=\s*/, "").trim();
+  const match = window.match(/^(\d+)-(\d*)$/);
+  if (!match) {
+    throw new ApiError(
+      `Invalid Range header '${raw}' (expected a row window like 'Range: 0-9')`,
+      400,
+      "VALIDATION_ERROR",
+    );
   }
-  const q = req.query.count;
-  return (Array.isArray(q) ? q[0] : q) === "exact";
+  const from = Number(match[1]);
+  const to = match[2] === "" ? null : Number(match[2]);
+  if (to !== null && to < from) {
+    throw new ApiError(
+      `Invalid Range header '${raw}': the window ends at ${to}, before it starts at ${from}`,
+      400,
+      "VALIDATION_ERROR",
+    );
+  }
+  return { from, to };
+}
+
+/**
+ * REST-RANGE-001 AC-2 — `Content-Range` for EVERY table GET:
+ *   - rows returned → `<first>-<last>/<total or *>` (the window actually
+ *     served, which is what postgrest-js reads to decide it can stop);
+ *   - nothing returned → `(star)/<total or *>`: the requested window starts at or
+ *     past the end of the result, and an empty page is never clamped back onto
+ *     the last page (AC-4).
+ * `total` is the exact count when `Prefer: count=*` (or `?count=*`) asked for
+ * it, and `*` otherwise — unknown, never a fabricated number.
+ */
+export function contentRangeHeader(
+  firstRow: number,
+  rowCount: number,
+  total: number | null,
+): string {
+  const totalPart = total === null ? "*" : String(total);
+  if (rowCount <= 0) return `*/${totalPart}`;
+  return `${firstRow}-${firstRow + rowCount - 1}/${totalPart}`;
 }
 
 // ---------------------------------------------------------------------------
@@ -372,9 +459,17 @@ function filterParameters(
       name: "count",
       in: "query",
       description:
-        "`count=exact` adds the X-Total-Count response header (same as Prefer: count=exact).",
+        "`exact` | `planned` | `estimated` — asks for the total row count. The total is reported as the `Content-Range` denominator and in `X-Total-Count`. `planned` and `estimated` are served as the EXACT count: a JSONL table scan has no planner estimate to report, and an exact total is a superset of the number those modes ask for (see docs/api/http-api.md).",
       required: false,
-      schema: { type: "string", enum: ["exact"] },
+      schema: { type: "string", enum: ["exact", "planned", "estimated"] },
+    },
+    {
+      name: "Range",
+      in: "header",
+      description:
+        "Inclusive row window for paging — exactly what postgrest-js `.range(from, to)` sends. `Range: 0-9` returns rows 0..9 and translates to `offset=0&limit=10`; it outranks `limit`/`offset` when both are present, and the 1000-row cap still clamps. An open-ended `Range: 10-` reads one page from row 10. A malformed window is 400 VALIDATION_ERROR.",
+      required: false,
+      schema: { type: "string" },
     },
   );
   return params;
@@ -398,6 +493,20 @@ function tablePathItem(declaration: TableDeclaration): Record<string, unknown> {
       responses: {
         "200": {
           description: "Rows (JSON array, or CSV with Accept: text/csv)",
+          // REST-RANGE-001: paging metadata is on EVERY read, so it is
+          // described as such rather than only on the count-request case.
+          headers: {
+            "Content-Range": {
+              description:
+                "The row window served: `<first>-<last>/<total|*>`, or `*/<total|*>` when the window is past the end of the result (the body is then `[]`). The denominator is the exact total when `count` was requested, `*` otherwise.",
+              schema: { type: "string" },
+            },
+            "X-Total-Count": {
+              description:
+                "Exact number of matching rows before limit/offset. Present when the request asked for a count (`Prefer: count=*` or `?count=*`).",
+              schema: { type: "integer" },
+            },
+          },
           content: {
             "application/json": {
               schema: { type: "array", items: rowSchema },
@@ -1203,6 +1312,11 @@ function createTableRoutes(): Router {
       const ns = param(req, "ns");
       const tableName = param(req, "table");
       const declaration = resolveTableDeclaration(ns, tableName);
+      // REST-RANGE-001: a `Range: from-to` header is the SDK paging contract
+      // (postgrest-js `.range()`); it translates onto the SAME limit/offset the
+      // querystring path uses, one row window at a time.
+      const range = parseRangeHeader(req.headers.range);
+      const countMode = requestedCountMode(req);
       const { rows, totalCount, projection } = await selectTableRows(ns, tableName, {
         // SURFACE-MCP-DATA-001: the same filter/order/paging vocabulary the
         // MCP table_select tool passes, so both transports answer identically.
@@ -1216,9 +1330,17 @@ function createTableRoutes(): Router {
         principal: getPrincipal(req),
         auditPolicyDenial: (event) => auditRequestDenial(req, event),
         order: req.query.order as string | string[] | undefined,
-        limit: req.query.limit,
-        offset: req.query.offset,
-        wantCount: wantsExactCount(req),
+        // Range outranks ?limit / ?offset (the header is the client's explicit
+        // window; mixing the two would silently shift it). `to` is INCLUSIVE.
+        limit: range
+          ? range.to === null
+            ? undefined
+            : range.to - range.from + 1
+          : req.query.limit,
+        offset: range ? range.from : req.query.offset,
+        // count=exact|planned|estimated — all three resolve to the exact total
+        // (see the module header; docs/api/http-api.md documents the choice).
+        wantCount: countMode !== null,
         select: req.query.select as string | string[] | undefined,
         // REST-ATOMICITY-001: one-level embedding over DECLARED relations.
         embed: req.query.embed as string | string[] | undefined,
@@ -1227,6 +1349,15 @@ function createTableRoutes(): Router {
       if (totalCount !== null) {
         res.setHeader("X-Total-Count", String(totalCount));
       }
+      // AC-2: on EVERY table GET, not just under Prefer: count=*. `offset` was
+      // validated by the plan that just succeeded, so it is a safe number here.
+      const firstRow = range
+        ? range.from
+        : Number(req.query.offset ?? 0) || 0;
+      res.setHeader(
+        "Content-Range",
+        contentRangeHeader(firstRow, rows.length, totalCount),
+      );
 
       const accept = String(req.headers.accept ?? "");
       if (accept.includes("text/csv")) {

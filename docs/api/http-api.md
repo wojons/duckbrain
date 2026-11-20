@@ -1306,9 +1306,53 @@ for multiple keys (`order=qty.desc,name.asc`).
 **Paging:** `limit` defaults to **100** and has a hard cap of **1000** —
 a larger value is clamped to 1000, not rejected. `offset` is 0-based.
 
-**Exact count:** send `Prefer: count=exact` (equivalently `?count=exact`) and
-the response carries `X-Total-Count` with the total number of matching rows
-before `limit`/`offset` are applied.
+**Range + `Content-Range` (REST-RANGE-001):** every table read answers with a
+`Content-Range` header, and accepts the row-window request header that
+postgrest-js `.range(from, to)` sends.
+
+| Request | Effect |
+|---|---|
+| `Range: 10-19` | rows 10..19 (0-based, **inclusive** at both ends) — translated to `offset=10&limit=10` |
+| `Range: items=10-19` | the same window; an `items=` / `bytes=` unit prefix is accepted and ignored |
+| `Range: 10-` | from row 10, at most one page (the default `limit`) |
+| `Range` **and** `limit`/`offset` | `Range` wins — the querystring paging is ignored for that request |
+
+The response header is `<first>-<last>/<total|*>`: the window actually served,
+and the exact total when a count was requested (`*` when it was not — the total
+is then unknown and is never fabricated). Both `Content-Range` and `Range` are
+in the CORS allow/expose lists (`Access-Control-Expose-Headers` /
+`Access-Control-Allow-Headers`), because a browser fetch cannot read a header it
+was not granted and cannot send `Range` (not a safelisted request header)
+without a preflight that names it.
+
+```bash
+curl -si "http://localhost:3000/api/ns/my-ns/tables/items?order=id.asc" \
+  -H "Range: 10-19" | grep -i content-range
+# Content-Range: 10-19/*
+
+curl -si "http://localhost:3000/api/ns/my-ns/tables/items?order=id.asc" \
+  -H "Range: 10-19" -H "Prefer: count=exact" \
+  | grep -iE 'content-range|x-total-count'
+# Content-Range: 10-19/120
+# X-Total-Count: 120
+```
+
+A window that starts at or past the end of the result answers `200` with `[]`
+and `Content-Range: */<total|*>` — it is **not** clamped back onto the last
+page, so a paging loop terminates instead of re-reading page 1 forever. A
+malformed window (`Range: 10`, `Range: 19-10`) is `400 VALIDATION_ERROR` naming
+the header, never a silent full-table read. The 1000-row cap still binds: a
+window wider than the cap returns the first 1000 rows of it, and `Content-Range`
+reports the window that was actually served.
+
+**Count:** `Prefer: count=exact` (equivalently `?count=exact`) makes the
+response carry `X-Total-Count` with the total number of matching rows before
+`limit`/`offset` are applied, and puts the same total in the `Content-Range`
+denominator. `count=planned` and `count=estimated` are **accepted and served as
+the exact count**: a JSONL table read is a full scan, so there is no planner
+estimate to report, and an exact total is a superset of the number those modes
+ask for — postgrest-js `{ count: 'planned' }` works unchanged. An unrecognised
+count value is ignored, exactly as it was before this header support existed.
 
 **CSV:** send `Accept: text/csv` to get `text/csv; charset=utf-8`. The header
 row is the declared columns in declaration order; nested JSON values are
