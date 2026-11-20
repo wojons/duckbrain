@@ -1,0 +1,41 @@
+{
+  "tick_id": "duckbrain-foreman-2026-11-20-08-33-11",
+  "project": "duckbrain",
+  "workdir": "/home/kara/duckbrain",
+  "base": "origin/main",
+  "base_sha": "04ffd215",
+  "budget": 3,
+  "slots": 3,
+  "slots_reason": "nproc=16, loadavg~9.5 -> 16-ceil(9.5)=6, capped by WAVE_BUDGET=3",
+  "block": "JUDGE-DUCKBRAIN-001 (resume: tier-2 judge lane unfunded) -> operational, done foreman-direct; wave filled from ready independent rows per doctrine 17",
+  "rows": [
+    {
+      "id": "OPS-015",
+      "worktree": "/home/kara/worktrees/duckbrain-OPS-015",
+      "branch": "wt/OPS-015",
+      "model": "openai/gpt-6.1-terra",
+      "provider": "xkiro",
+      "seam": ["ops/systemd/**", "docs/guide/deployment.md", ".coding-hermes/board/evidence-OPS-015-*.txt"],
+      "brief": "/tmp/brief-OPS-015"
+    },
+    {
+      "id": "REST-RANGE-001",
+      "worktree": "/home/kara/worktrees/duckbrain-REST-RANGE-001",
+      "branch": "wt/REST-RANGE-001",
+      "model": "openai/gpt-6.1-terra",
+      "provider": "xkiro",
+      "seam": ["src/http/**", "tests/**http**", "docs/**"],
+      "brief": "/tmp/brief-REST-RANGE-001"
+    },
+    {
+      "id": "SDK-DIST-001",
+      "worktree": "/home/kara/worktrees/duckbrain-SDK-DIST-001",
+      "branch": "wt/SDK-DIST-001",
+      "model": "openai/gpt-6.1-terra",
+      "provider": "xkiro",
+      "seam": ["packages/sdk/**", "package.json", "scripts/**, examples/sdk-quickstart/**"],
+      "brief": "/tmp/brief-SDK-DIST-001"
+    }
+  ],
+  "independence_check": "no depends_on edges on any of the three rows (verified from tasks.jsonl); disjoint file areas: ops/systemd+docs vs src/http+tests vs packages/sdk+root build"
+}
