@@ -1,0 +1,21 @@
+{
+  "tick": "duckbrain-foreman-2026-11-20-20-30-12",
+  "block": "CLI-GODMODE-001",
+  "path": "serial",
+  "slots": 1,
+  "slots_reason": "nproc=16 loadavg=22.14 -> max(1, 16-ceil(22.14))=1; WAVE_BUDGET=3 is ceiling, slots=1 binds",
+  "resume_note": "INT-CI-041 barred by COS dead-wave verdict 28bd1004 (do-not-re-dispatch); picked top dispatchable row per boardctl next",
+  "rows": [
+    {
+      "id": "CLI-GODMODE-001",
+      "status": "dispatched",
+      "worktree": "/home/kara/worktrees/duckbrain-CLI-GODMODE-001",
+      "branch": "wt/CLI-GODMODE-001",
+      "base_sha": "bdacd820",
+      "brief": "/tmp/brief-CLI-GODMODE-001-t2033.txt",
+      "model": "openai/gpt-6.1-terra",
+      "provider": "xkiro",
+      "gitreins_task": "CLI-GODMODE-001"
+    }
+  ]
+}
