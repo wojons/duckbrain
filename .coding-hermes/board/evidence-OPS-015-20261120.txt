@@ -92,3 +92,299 @@ message of 50d19d91.
   units and the equivalent brake observable (failed + "Start request repeated too
   quickly") is quoted instead.
 - Did not touch the board row's status beyond this annotation.
+---
+SECOND MEASUREMENT (same day, wave worker wt/OPS-015, base 04ffd215):
+This pass ships the drop-in asset and reaches the AC's named observable
+Result=start-limit-hit (see section 2 below). Kept alongside the first
+measurement above; no line of either pass was removed.
+
+OPS-015 — restart brake rehearsal transcript (repo artifact + live observable)
+Ticket:  OPS-015 "duckbrain-http.service restart brake is INERT: StartLimitIntervalSec=300 sits in [Service]"
+Date:    2026-11-20 (America/New_York, -05:00)
+Host:    karaHermes-mde-7840hs
+Kernel:  7.0.0-43-generic
+Manager: systemd 259 (259.9-0ubuntu0.1)   <- StartLimit* in [Service] is ignored since v230
+Worker:  wt/OPS-015, worktree /home/kara/worktrees/duckbrain-OPS-015, base origin/main 04ffd215
+
+Everything below was produced on SCRATCH units. The live duckbrain-http.service was
+never started, stopped, restarted, signalled or crash-tested. daemon-reload was run
+(it never restarts a running unit) and the live identity is proven unchanged at the
+end (MainPID / ActiveEnterTimestamp / NRestarts identical before and after).
+
+===========================================================================
+0. THE DEFECT, MEASURED — negative control (keys in [Service], pre-fix shape)
+===========================================================================
+$ systemctl --version | head -1
+systemd 259 (259.9-0ubuntu0.1)
+
+Scratch unit ~/.config/systemd/user/duckbrain-ops015-bad.service (NOT the live unit):
+  [Unit]
+  Description=OPS-015 negative control (pre-fix shape: StartLimit* in [Service])
+
+  [Service]
+  Type=simple
+  ExecStart=/bin/true
+  Restart=always
+  RestartSec=3
+  StartLimitIntervalSec=300
+  StartLimitBurst=10
+
+$ systemctl --user daemon-reload
+daemon-reload rc=0
+
+$ systemctl --user show duckbrain-ops015-bad -p StartLimitIntervalUSec -p StartLimitBurst
+StartLimitIntervalUSec=10s        <-- the 300s intent is GONE, manager default applies
+StartLimitBurst=10
+
+$ journalctl --user -u duckbrain-ops015-bad --no-pager -o cat | grep -i "Unknown key"
+/home/kara/.config/systemd/user/duckbrain-ops015-bad.service:9: Unknown key 'StartLimitIntervalSec' in section [Service], ignoring.
+
+This reproduces the filed defect exactly: 300s of intent collapses to the 10s manager
+default while RestartSec=3 keeps restarting — a 3s crash loop that is never braked.
+
+===========================================================================
+1. THE FIX, MEASURED — repo asset + drop-in installed as a scratch unit
+===========================================================================
+The repo files were copied under a scratch unit name so the LIVE unit was untouched:
+  cp ops/systemd/duckbrain-http.service            ~/.config/systemd/user/duckbrain-ops015-repo.service
+  cp ops/systemd/duckbrain-http.service.d/10-restart-brake.conf \
+                                                   ~/.config/systemd/user/duckbrain-ops015-repo.service.d/
+
+$ grep -n "StartLimit\|^\[" ops/systemd/duckbrain-http.service
+1:[Unit]
+5:[Service]
+15:# up (StartLimitAction=default = the unit enters failed state, which monitoring
+34:[Install]
+        (no StartLimit* directive survives in the base unit — only a comment pointer)
+
+$ grep -n "StartLimit\|^\[" ops/systemd/duckbrain-http.service.d/10-restart-brake.conf
+8:[Unit]
+9:StartLimitIntervalSec=300
+10:StartLimitBurst=10
+
+$ systemctl --user daemon-reload
+daemon-reload rc=0
+
+$ systemctl --user show duckbrain-ops015-repo -p StartLimitIntervalUSec -p StartLimitBurst -p Restart -p Result
+StartLimitIntervalUSec=5min       <-- 300s intent survives
+StartLimitBurst=10
+Restart=always
+Result=success
+
+$ journalctl --user -u duckbrain-ops015-repo --no-pager -o cat | grep -i "Unknown key"
+grep rc=1 (1 = none = keys parsed in a valid [Unit] section)
+
+So the REPO artifacts (not the hand-patched host drop-in) produce 5min/10 with no
+parse warning.
+
+===========================================================================
+2. ITERATION RECORD — how Result=start-limit-hit was reached (AC D)
+===========================================================================
+The previous attempt recorded Result=exit-code and never the AC's named value. Four
+unit shapes were tried on scratch units (StartLimitIntervalSec=30, StartLimitBurst=3,
+RestartSec=1, sleep-free crasher/exiter). Everything below is verbatim output.
+
+ATTEMPT 1 — Type=simple, Restart=on-failure, ExecStart=/bin/false
+  $ systemctl --user reset-failed duckbrain-ops015-probe ; systemctl --user start duckbrain-ops015-probe
+  start rc=0
+  t+1s activating 0 / t+2s active 2 / t+3s failed 3
+  $ systemctl --user show duckbrain-ops015-probe -p Result -p NRestarts -p ActiveState
+  ActiveState=failed
+  Result=exit-code
+  NRestarts=3
+  journal: "Start request repeated too quickly." + "Failed with result 'exit-code'."
+  => brake ENGAGED (unit stops restarting) but Result is exit-code.
+
+ATTEMPT 2 — Type=simple, Restart=always, ExecStart=/bin/false
+  $ systemctl --user show duckbrain-ops015-probe -p Result -p NRestarts -p ActiveState
+  ActiveState=failed
+  Result=exit-code
+  NRestarts=3
+  => same: a nonzero exit latches Result=exit-code.
+
+ATTEMPT 3 — Type=simple, Restart=always, ExecStart=/bin/true (clean exit)
+  $ systemctl --user show duckbrain-ops015-probe -p Result -p NRestarts -p ActiveState
+  ActiveState=failed
+  Result=start-limit-hit
+  NRestarts=3
+  => the AC's named observable.
+
+WHY (source-of-truth, systemd v259 src/core/service.c — fetched 2026-11-20 from
+https://raw.githubusercontent.com/systemd/systemd/v259/src/core/service.c):
+  service.c:2118-2119  `if (s->result == SERVICE_SUCCESS) s->result = f;`
+      service_enter_dead() only adopts a new result when the previous result was
+      SUCCESS. A prior exit-code failure therefore can never be overwritten by the
+      start-limit result.
+  service.c:5673-5690  service_test_startable() is the ONLY writer of
+      SERVICE_FAILURE_START_LIMIT_HIT: `service_enter_dead(s, SERVICE_FAILURE_START_LIMIT_HIT, false)`.
+  service.c:5884       [SERVICE_FAILURE_START_LIMIT_HIT] = "start-limit-hit"
+  unit.c:1848-1859     unit_test_start_limit(): "Start request repeated too quickly."
+Consequence: on this manager Result=start-limit-hit is observable only when the last
+death was a SUCCESS (clean exit under Restart=always). For a genuinely crashing unit
+the brake is observable as the refusal itself (journal "Start request repeated too
+quickly.", restarts capped at StartLimitBurst, ActiveState=failed, is-failed rc=0).
+Both arms are recorded below.
+
+===========================================================================
+3. CANONICAL REHEARSAL — scratch units, exact recorded observables
+===========================================================================
+$ bash /tmp/ops015-rehearsal.sh        # transcript /tmp/ops015-rehearsal.out
+host: karaHermes-mde-7840hs   date: 2026-11-20T03:53:06-05:00
+systemctl: systemd 259 (259.9-0ubuntu0.1)
+
+LIVE daemon BEFORE (never touched):
+ActiveState=active
+ActiveEnterTimestamp=Fri 2026-11-20 01:40:09 -05
+MainPID=1040296
+NRestarts=1
+
+CASE A — crasher (ExecStart=/bin/false, Restart=on-failure, RestartSec=1, brake 30/3)
+  [Unit]
+  StartLimitIntervalSec=30
+  StartLimitBurst=3
+  [Service]
+  Type=simple
+  ExecStart=/bin/false
+  Restart=on-failure
+  RestartSec=1
+
+  $ systemctl --user start duckbrain-ops015-a      -> start rc=0
+  t+1s active 1 / t+2s active 2 / t+3s failed 3
+  $ systemctl --user show duckbrain-ops015-a -p Result -p NRestarts -p ActiveState
+  ActiveState=failed
+  Result=exit-code
+  NRestarts=3
+  $ systemctl --user is-failed duckbrain-ops015-a
+  failed            (is-failed rc=0)
+  journal tail:
+    duckbrain-ops015-a.service: Scheduled restart job, restart counter is at 3.
+    duckbrain-ops015-a.service: Start request repeated too quickly.
+    duckbrain-ops015-a.service: Failed with result 'exit-code'.
+    Failed to start duckbrain-ops015-a.service - OPS-015 scratch rehearsal ...
+
+CASE B — clean-exit exiter (ExecStart=/bin/true, Restart=always, RestartSec=1, brake 30/3)
+  $ systemctl --user start duckbrain-ops015-b      -> start rc=0
+  t+1s active 1 / t+2s activating 2 / t+3s failed 3
+  $ systemctl --user show duckbrain-ops015-b -p Result -p NRestarts -p ActiveState
+  ActiveState=failed
+  Result=start-limit-hit        <-- AC D's named observable
+  NRestarts=3
+  $ systemctl --user is-failed duckbrain-ops015-b
+  failed            (is-failed rc=0)
+  journal tail:
+    duckbrain-ops015-b.service: Scheduled restart job, restart counter is at 3.
+    duckbrain-ops015-b.service: Start request repeated too quickly.
+    duckbrain-ops015-b.service: Failed with result 'start-limit-hit'.
+
+CASE C — AC-literal repeated `systemctl --user start` loop (/bin/false, on-failure)
+  start #1 rc=0
+  start #2 rc=1  Job for duckbrain-ops015-c.service failed because the control process exited with error code.
+  start #3 rc=1  Job for duckbrain-ops015-c.service failed because the control process exited with error code.
+  start #4 rc=1  Job for duckbrain-ops015-c.service failed because the control process exited with error code.
+  start #5 rc=1  Job for duckbrain-ops015-c.service failed because the control process exited with error code.
+  journal: "Start request repeated too quickly" count = 4
+  $ systemctl --user show duckbrain-ops015-c -p Result -p NRestarts -p ActiveState
+  ActiveState=failed
+  Result=exit-code
+  NRestarts=2
+  $ systemctl --user is-failed duckbrain-ops015-c
+  failed
+  => the manual-start loop DOES hit the brake (journal lines), but the client only sees
+     the exit-code job failure and Result stays exit-code — this is the exact shape the
+     previous attempt recorded.
+
+CLEANUP (scratch units only)
+  stop / reset-failed / disable (units are static: "The unit files have no installation
+  config ... not meant to be enabled") / delete unit file + drop-in dir, then
+  daemon-reload rc=0.
+  $ systemctl --user list-unit-files 'duckbrain-ops015*'
+  0 unit files listed.
+
+LIVE daemon AFTER (must equal BEFORE):
+ActiveState=active
+ActiveEnterTimestamp=Fri 2026-11-20 01:40:09 -05
+MainPID=1040296                    (unchanged — the daemon was never restarted)
+NRestarts=1                        (unchanged)
+
+live brake still in force:
+StartLimitIntervalUSec=5min
+StartLimitBurst=10
+RestartUSec=3s
+
+Residual leftover units from the iteration attempts were removed in a second pass
+(/tmp/ops015-cleanup.out):
+  $ systemctl --user list-unit-files 'duckbrain-ops015*'
+  UNIT FILE STATE PRESET
+  0 unit files listed.
+  $ systemctl --user show duckbrain-http.service -p MainPID -p ActiveEnterTimestamp -p NRestarts -p ActiveState -p StartLimitIntervalUSec -p StartLimitBurst -p RestartUSec
+  ActiveState=active
+  ActiveEnterTimestamp=Fri 2026-11-20 01:40:09 -05
+  StartLimitIntervalUSec=5min
+  StartLimitBurst=10
+  RestartUSec=3s
+  MainPID=1040296
+  NRestarts=1
+
+===========================================================================
+4. REGRESSION GUARD — src/ops/systemd-assets.test.ts, RED then GREEN
+===========================================================================
+RED: the pre-fix tree (HEAD unit with StartLimit* in [Service], no drop-in, no
+INSTALL.md, pre-fix deployment.md) — 4 of 5 assertions fail, quoting the defect:
+  FAIL > carries NO StartLimit* key anywhere in the base unit
+  AssertionError: StartLimit* must not appear in duckbrain-http.service: systemd >=230
+  ignores it outside [Unit], which is the defect OPS-015 fixed (live host measured
+  StartLimitIntervalUSec=10s for this shape vs 5min for the drop-in): expected [ …(2) ] to deeply equal []
+  +   "[Service] StartLimitIntervalSec=300",
+  +   "[Service] StartLimitBurst=10",
+  FAIL > ships the drop-in with a [Unit] section and the 300s/10 brake
+  AssertionError: ops/systemd/duckbrain-http.service.d/10-restart-brake.conf must be shipped in the repo: expected false to be true
+  FAIL > keeps the base unit's comment pointing at the drop-in
+  AssertionError: expected '[Unit]\nDescription=DuckBrain HTTP MC…' to match /10-restart-brake\.conf/
+  FAIL > documents an install recipe that copies the drop-in directory
+  AssertionError: the cp recipe must be recursive (cp -r): expected 0 to be greater than 0
+  Test Files  1 failed (1) / Tests  4 failed | 1 passed (5)   RED_EXIT=1
+
+GREEN: fixed tree
+  Test Files  1 passed (1) / Tests  5 passed (5)              GREEN_EXIT=0
+
+===========================================================================
+5. GATES RUN ON THE FIXED TREE
+===========================================================================
+$ node scripts/docs-check.js
+docs-check: OK — README.md + 83 docs/*.md files: fences balanced, local links resolve, Node/pnpm claims match package.json
+DOCS_CHECK_EXIT=0
+
+$ npx vitest run src/ops/systemd-assets.test.ts
+Test Files  1 passed (1) / Tests  5 passed (5)
+
+$ npx vitest run            # full unit suite, includes the new file
+Test Files  299 passed (299)
+     Tests  2508 passed | 1 skipped (2509)
+
+$ bash scripts/sync-agents-md-counts.sh /tmp/ops015-vitest.out
+test-counts.json synced to live suite: 299 suites, 2509 tests
+$ bash scripts/sync-agents-md-counts.sh --check /tmp/ops015-vitest.out
+test-counts.json test counts match live suite (299 suites, 2509 tests)   (rc=0)
+
+$ npx tsc --noEmit
+TSC_EXIT=0
+
+No `tests/ops-unit-assets.test.ts` exists in this repo and the path would not be
+collected anyway: vitest.config.ts includes only "src/**/*.test.ts" and
+vitest.integration.config.ts only "tests/**/*.int.test.ts". The guard therefore lives
+at src/ops/systemd-assets.test.ts, where the unit suite actually discovers it.
+
+===========================================================================
+6. DEPLOY PATH FOUND (AC B)
+===========================================================================
+No install script exists for ops/systemd units:
+  - `git ls-files ops/` lists unit/timer files only; no install script.
+  - `node bin/duckbrain.js service install` (src/cli/service.ts) writes its OWN
+    generated `duckbrain.service` and never reads ops/systemd/.
+  - repo-wide grep for "daemon-reload" finds only docs + that generator.
+The install path is therefore the documented `cp` recipe: docs/guide/deployment.md
+§ "Hardened Lifecycle Assets (OPS-001)". It was updated to `cp -r ... ops/systemd/
+duckbrain-http.service.d ...`, and a new ops/systemd/INSTALL.md carries the exact
+cp/systemctl commands plus the verification commands. src/ops/systemd-assets.test.ts
+asserts the recipe stays recursive and names the .d directory, so a future `cp *.service`
+regression fails the suite instead of silently re-shipping an inert brake.

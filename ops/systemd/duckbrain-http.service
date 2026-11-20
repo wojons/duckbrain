@@ -19,7 +19,11 @@ WorkingDirectory=%h/duckbrain
 # crash exits and graceful stops.
 Restart=always
 RestartSec=3
-# Start-limit lives in [Unit] above (OPS-015) — do not repeat it here.
+# Start-limit lives in [Unit] above (OPS-015) — do not repeat it here. systemd
+# >=230 honors these keys ONLY in [Unit]. The same values also ship as the
+# drop-in duckbrain-http.service.d/10-restart-brake.conf for hosts that install
+# the brake by drop-in (see ops/systemd/INSTALL.md); the two are identical, so
+# either install path brakes RestartSec=3.
 # Graceful stop: SIGTERM, then SIGKILL after the grace window. Matches the
 # daemon's graceful shutdown (durability drain + commit flush) plus headroom.
 KillSignal=SIGTERM

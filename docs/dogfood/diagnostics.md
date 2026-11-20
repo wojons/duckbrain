@@ -319,9 +319,13 @@ Both halves are fixed in-tree; nothing here needs host access:
   socket-named pidfile of a `--unix-socket` instance; `--json` for scripts.
   Vite/UI is never touched — stop it from its own terminal.
 - **Restart=always unit** — `ops/systemd/duckbrain-http.service` (user
-  unit). `Restart=always` covers graceful stops AND crashes;
-  `StartLimitIntervalSec=300` / `StartLimitBurst=10` rate-limit crash
-  loops; `TimeoutStopSec=30` bounds the SIGTERM→SIGKILL window.
+  unit) + its `duckbrain-http.service.d/` drop-ins. `Restart=always` covers
+  graceful stops AND crashes; `TimeoutStopSec=30` bounds the SIGTERM→SIGKILL
+  window. The crash-loop rate limit (`StartLimitIntervalSec=300` /
+  `StartLimitBurst=10`) ships in the `[Unit]` drop-in
+  `10-restart-brake.conf`, because systemd >=230 ignores `StartLimit*` keys
+  in `[Service]` — install the drop-in directory with `cp -r` or the brake
+  is inert (OPS-015).
 - **Dark-port watchdog** — `ops/systemd/duckbrain-http-health.service` +
   `.timer`: probes `/health` every minute through
   `scripts/health-check.js` (`src/cli/health-check.ts`). Contract: HTTP 200

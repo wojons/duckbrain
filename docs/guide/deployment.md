@@ -124,19 +124,25 @@ just files:
 
 ```bash
 # From the repo root. Installs as USER units (recommended for dev hosts).
+# -r is REQUIRED: duckbrain-http.service.d/ is a drop-in directory. A plain
+# `cp ops/systemd/*.service` ships the base unit but drops the restart brake
+# below it and silently re-creates the OPS-015 defect.
 mkdir -p ~/.config/systemd/user
-cp ops/systemd/duckbrain-http.service \
-   ops/systemd/duckbrain-http-health.service \
-   ops/systemd/duckbrain-http-health.timer \
-   ops/systemd/duckbrain-http-recover.service \
-   ops/systemd/duckbrain-http-recover.timer \
-   ~/.config/systemd/user/
+cp -r ops/systemd/duckbrain-http.service \
+      ops/systemd/duckbrain-http.service.d \
+      ops/systemd/duckbrain-http-health.service \
+      ops/systemd/duckbrain-http-health.timer \
+      ops/systemd/duckbrain-http-recover.service \
+      ops/systemd/duckbrain-http-recover.timer \
+      ~/.config/systemd/user/
 # The service asset also installs the crash-attribution wrapper at this path:
 # %h/duckbrain/scripts/crash-attribution.js
 systemctl --user daemon-reload
 systemctl --user enable --now duckbrain-http.service
 systemctl --user enable --now duckbrain-http-health.timer
 systemctl --user enable --now duckbrain-http-recover.timer
+# Prove the start-limit brake is parsed (OPS-015) — expect 5min / 10:
+systemctl --user show duckbrain-http -p StartLimitIntervalUSec -p StartLimitBurst
 ```
 
 What each asset guarantees:
@@ -145,10 +151,23 @@ What each asset guarantees:
   restarted), `RestartSec=3`, `StartLimitIntervalSec=300` +
   `StartLimitBurst=10` (crash-loop rate limit; both are `[Unit]` keys — systemd
   ignores them under `[Service]` and warns `Unknown key name`, so keep them in
-  the `[Unit]` section or a `[Unit]` drop-in), `KillSignal=SIGTERM` +
+  the `[Unit]` section or a `[Unit]` drop-in; the repo ships both, see
+  `ops/systemd/INSTALL.md`), `KillSignal=SIGTERM` +
   `TimeoutStopSec=30` (bounded graceful window before SIGKILL). Edit
   `ExecStart` only to change the port or add flags; keep everything else.
-  It also enforces `MemoryHigh=6442450944` (6G), `MemoryMax=8589934592`
+- `duckbrain-http.service.d/10-restart-brake.conf` — `StartLimitIntervalSec=300`
+  + `StartLimitBurst=10`, in a `[Unit]` section. systemd >=230 accepts
+  `StartLimit*` keys **only** in `[Unit]`; shipped in `[Service]` (as they
+  were before OPS-015) they are ignored, the journal logs
+  `Unknown key StartLimitIntervalSec in section [Service]`, and `RestartSec=3`
+  gives an unbraked 3s crash loop against the 10s manager default. With this
+  drop-in installed, a burst of 10 restarts inside 300s ends in
+  `Result=start-limit-hit` / `ActiveState=failed` — a state monitoring should
+  alert on alongside the dark-port check. **Do not fold these keys back into
+  the service file.** See `ops/systemd/INSTALL.md` for the install and
+  verification recipe.
+- `duckbrain-http.service` also enforces `MemoryHigh=6442450944` (6G),
+  `MemoryMax=8589934592`
   (8G), and `NODE_OPTIONS=--max-old-space-size=3072`. These limits preserve
   the discipline learned from the 2026-11-14 SEGV (4G RSS peak against a 4G
   MemoryHigh and a 9G swap peak); do not remove them during deployment.
