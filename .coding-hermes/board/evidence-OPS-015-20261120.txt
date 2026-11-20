@@ -170,3 +170,47 @@ base unit holds no StartLimit* key at all; no shipped unit places one outside
 [Unit]; and the deployment guide documents both the [Unit] rule and the drop-in
 install path.
 
+
+===========================================================================
+4. FOREMAN VERIFICATION OF AC ARM D (tick duckbrain-foreman-2026-11-20-08-33-11)
+===========================================================================
+The annotation commit 44cae162 recorded OPS-015 as blocked because
+"AC names Result=start-limit-hit; not producible on systemd 259 (measured
+exit-code in two unit shapes)". That claim is REFUTED by direct measurement on
+the same host and manager in this tick.
+
+Method: transient scratch unit via systemd-run --user, clean-exit exiter
+(/bin/true) under Restart=always, brake 30s/3. The live duckbrain-http daemon
+was NOT started, stopped, restarted or crash-looped; its baseline is quoted
+before and after the experiment.
+
+  $ systemd-run --user --unit=ops015-verify-2005575 --collect \
+      --property=Type=simple --property=Restart=always --property=RestartSec=1 \
+      --property=StartLimitIntervalSec=30 --property=StartLimitBurst=3 /bin/true
+  run: Running as unit: ops015-verify-2005575.service; invocation ID: cbdc0bf9a053449eb23e6b259d1d36a6
+
+  journalctl --user -u ops015-verify-2005575.service:
+    ...: Scheduled restart job, restart counter is at 2.
+    ...: Scheduled restart job, restart counter is at 3.
+    ...: Start request repeated too quickly.
+    ...: Failed with result 'start-limit-hit'.        <-- AC D's named observable
+
+  live daemon baseline, before AND after (untouched):
+    ActiveState=active
+    ActiveEnterTimestamp=Fri 2026-11-20 01:40:09 -05
+    NRestarts=1
+
+Why the first pass could not see it (worker iteration record, reproduced and
+source-checked in section 2 of this file): a NONZERO first exit latches
+Result=exit-code, and service_enter_dead() only adopts a new result while the
+previous one is SERVICE_SUCCESS (systemd v259 src/core/service.c:2118-2119), so
+SERVICE_FAILURE_START_LIMIT_HIT (written only by service_test_startable(),
+service.c:5673-5690) is observable only when the last death was a clean exit.
+The brake itself is equally observable for a crasher as the refusal:
+journal "Start request repeated too quickly.", Restart counter capped at
+StartLimitBurst, ActiveState=failed, is-failed rc=0.
+
+Disposition: the AC's named observable Result=start-limit-hit IS producible and
+is now recorded; the blocked annotation is superseded. Code landing remains
+2b1e3d6e (crash-loop brake shipped as ops/systemd/duckbrain-http.service.d/
+10-restart-brake.conf, StartLimit* kept out of [Service]).
