@@ -1,0 +1,29 @@
+{
+  "tick_id": "duckbrain-foreman-2026-11-20-12-11-44",
+  "project": "duckbrain",
+  "workdir": "/home/kara/duckbrain",
+  "base": "origin/main",
+  "base_sha": "6286094d",
+  "budget": 6,
+  "slots": 1,
+  "slots_reason": "nproc=16, loadavg 20.18 -> 16-ceil(20.18)=-5 -> max(1,..)=1 slot (loaded box: serial path per lane prompt sec.2; load is never an idle reason)",
+  "path": "SERIAL (slots<2)",
+  "block": "crash-loop brake proof + API/SDK seams -> continuation INT-CI-041 (resume-first: last tick's closing event lists INT-CI-041 ready)",
+  "rows": [
+    {
+      "id": "INT-CI-041",
+      "worktree": "/home/kara/worktrees/duckbrain-INT-CI-041",
+      "branch": "wt/INT-CI-041",
+      "model": "openai/gpt-6.1-terra",
+      "provider": "xkiro",
+      "seam": [
+        "src/http/routes/activity-namespace-attribution.test.ts",
+        "src/http/routes/*.ts (helper only, max 1 new file)"
+      ],
+      "brief": "/tmp/brief-INT-CI-041-w12",
+      "gitreins_task": "INT-CI-041 (created+started this tick)"
+    }
+  ],
+  "independence_check": "single-row serial wave; no depends_on edges; seam is one test file, disjoint from canonical tree work",
+  "pre_tick_residue_commit": "6286094d"
+}
