@@ -1,6 +1,14 @@
 [Unit]
 Description=DuckBrain HTTP MCP daemon (auto-restart hardened, OPS-001)
 After=network.target
+# OPS-015: StartLimit* are [Unit] keys — systemd ignores them in [Service]
+# ("Unknown key name" warning + the 10s/5-attempt defaults apply instead, which
+# an auto-restarting unit can trip in ~15s). Keep them here, never in [Service].
+# Start-limit: allow a burst of restarts, then cool down instead of giving
+# up (StartLimitAction=default = the unit enters failed state, which monitoring
+# should alert on alongside the dark-port check).
+StartLimitIntervalSec=300
+StartLimitBurst=10
 
 [Service]
 Type=simple
@@ -11,11 +19,7 @@ WorkingDirectory=%h/duckbrain
 # crash exits and graceful stops.
 Restart=always
 RestartSec=3
-# Start-limit: allow a burst of restarts, then cool down instead of giving
-# up (StartLimitAction=default = the unit enters failed state, which monitoring
-# should alert on alongside the dark-port check).
-StartLimitIntervalSec=300
-StartLimitBurst=10
+# Start-limit lives in [Unit] above (OPS-015) — do not repeat it here.
 # Graceful stop: SIGTERM, then SIGKILL after the grace window. Matches the
 # daemon's graceful shutdown (durability drain + commit flush) plus headroom.
 KillSignal=SIGTERM

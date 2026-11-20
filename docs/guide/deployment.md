@@ -143,7 +143,9 @@ What each asset guarantees:
 
 - `duckbrain-http.service` — `Restart=always` (a graceful stop is still
   restarted), `RestartSec=3`, `StartLimitIntervalSec=300` +
-  `StartLimitBurst=10` (crash-loop rate limit), `KillSignal=SIGTERM` +
+  `StartLimitBurst=10` (crash-loop rate limit; both are `[Unit]` keys — systemd
+  ignores them under `[Service]` and warns `Unknown key name`, so keep them in
+  the `[Unit]` section or a `[Unit]` drop-in), `KillSignal=SIGTERM` +
   `TimeoutStopSec=30` (bounded graceful window before SIGKILL). Edit
   `ExecStart` only to change the port or add flags; keep everything else.
   It also enforces `MemoryHigh=6442450944` (6G), `MemoryMax=8589934592`
