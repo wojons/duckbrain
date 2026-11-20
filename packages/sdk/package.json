@@ -2,18 +2,30 @@
   "name": "@duckbrain/sdk",
   "version": "0.1.0",
   "private": true,
-  "description": "Typed TypeScript client generated from the DuckBrain per-namespace OpenAPI document. In-repo artifact: not published to any registry (SDK-PARITY-001 AC-5).",
+  "description": "Typed TypeScript client for the DuckBrain HTTP API, generated from the server's own per-namespace OpenAPI document. Distributed as a vendored tarball (npm pack) — see the README \"Distribution\" section.",
   "type": "module",
-  "main": "./src/index.ts",
-  "types": "./src/index.ts",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
   "exports": {
-    ".": "./src/index.ts"
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js",
+      "default": "./dist/index.js"
+    },
+    "./package.json": "./package.json"
   },
+  "files": [
+    "dist",
+    "spec",
+    "README.md"
+  ],
   "sideEffects": false,
-  "publishConfig": {
-    "access": "restricted"
+  "engines": {
+    "node": ">=22"
   },
   "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "prepack": "npm run build",
     "gen": "tsx ../../scripts/gen-sdk.ts",
     "check": "tsx ../../scripts/gen-sdk.ts --check",
     "typecheck": "tsc --noEmit -p tsconfig.json"

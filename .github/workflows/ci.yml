@@ -84,6 +84,17 @@ jobs:
       - name: Run type check
         run: pnpm tsc --noEmit
 
+      # SDK-DIST-001: @duckbrain/sdk is a BUILT package (main/types/exports →
+      # dist/). Without this step a change that breaks the emit, or a package
+      # manifest pointing back at TypeScript source, could pass CI unnoticed —
+      # the failure would only show up in a consumer's `npm install`.
+      - name: Build @duckbrain/sdk (dist + declarations)
+        run: |
+          pnpm sdk:build
+          test -f packages/sdk/dist/index.js
+          test -f packages/sdk/dist/index.d.ts
+          pnpm sdk:check
+
       # DF-2026-12: bin/duckbrain.js prefers dist/ when present. Build the
       # shipped entry point before the subprocess E2E so CI cannot verify only
       # the TypeScript source while an old ignored dist/ shadows it.

@@ -1,0 +1,13 @@
+{
+  "name": "duckbrain-sdk-quickstart",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Runnable consumer of @duckbrain/sdk — installs the local package by name (file:../../packages/sdk) and drives a scratch DuckBrain daemon through the compiled client.",
+  "scripts": {
+    "start": "node index.ts"
+  },
+  "dependencies": {
+    "@duckbrain/sdk": "file:../../packages/sdk"
+  }
+}

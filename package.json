@@ -26,7 +26,7 @@
     "start:ui": "node scripts/start-ui.mjs",
     "dev": "node scripts/dev.mjs",
     "dev:docker": "docker-compose -f docker-compose.dev.yml up",
-    "build": "pnpm --dir packages/ui build",
+    "build": "npm run sdk:build && pnpm --dir packages/ui build",
     "docker:build": "docker build -t duckbrain .",
     "docker:run": "docker run -p 3000:3000 -p 5173:5173 -v duckbrain-data:/data duckbrain",
     "stop": "node scripts/scoped-stop.js",
@@ -35,6 +35,7 @@
     "docs:check": "node scripts/docs-check.js",
     "deps:lockstep": "bash scripts/ci/check-lockfile-lockstep.sh",
     "docs:surface": "tsx scripts/gen-surface-matrix.ts",
+    "sdk:build": "npm --prefix packages/sdk run build",
     "sdk:gen": "tsx scripts/gen-sdk.ts",
     "sdk:check": "tsx scripts/gen-sdk.ts --check"
   },

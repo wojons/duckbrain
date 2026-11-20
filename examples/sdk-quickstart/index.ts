@@ -1,18 +1,21 @@
 /**
- * SDK-PARITY-001 AC-3: one runnable example that talks to DuckBrain ONLY
- * through the generated client — no fetch, no raw URL building, no hand-rolled
- * auth headers, no hand-parsed errors.
+ * SDK-DIST-001: one runnable example that talks to DuckBrain ONLY through the
+ * shipped package — `@duckbrain/sdk` by name, resolved from this directory's
+ * package.json (file:../../packages/sdk), i.e. exactly what a tarball consumer
+ * gets. No fetch, no raw URL building, no hand-rolled auth headers, no
+ * hand-parsed errors, and no path into packages/sdk/src.
  *
  * Run it against a scratch daemon (never :3000):
  *
+ *   npm run sdk:build && npm install --prefix examples/sdk-quickstart
  *   DUCKBRAIN_NAMESPACES_PATH=/tmp/sdk-demo-ns \
  *     node bin/duckbrain.js http --port 28811 --auth=none &
- *   npx tsx examples/sdk-quickstart/index.ts http://127.0.0.1:28811 sdk_demo
+ *   node examples/sdk-quickstart/index.ts http://127.0.0.1:28811 sdk_demo
  */
 import {
   DuckBrainApiError,
   NamespaceClient,
-} from "../../packages/sdk/src/index.js";
+} from "@duckbrain/sdk";
 
 const baseUrl = process.argv[2] ?? "http://127.0.0.1:28811";
 const namespace = process.argv[3] ?? "sdk_demo";
