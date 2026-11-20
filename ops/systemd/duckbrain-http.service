@@ -1,14 +1,11 @@
 [Unit]
 Description=DuckBrain HTTP MCP daemon (auto-restart hardened, OPS-001)
 After=network.target
-# OPS-015: StartLimit* are [Unit] keys — systemd ignores them in [Service]
-# ("Unknown key name" warning + the 10s/5-attempt defaults apply instead, which
-# an auto-restarting unit can trip in ~15s). Keep them here, never in [Service].
-# Start-limit: allow a burst of restarts, then cool down instead of giving
-# up (StartLimitAction=default = the unit enters failed state, which monitoring
-# should alert on alongside the dark-port check).
-StartLimitIntervalSec=300
-StartLimitBurst=10
+# OPS-015: the crash-loop brake (StartLimitIntervalSec / StartLimitBurst) ships
+# as the drop-in ops/systemd/duckbrain-http.service.d/10-restart-brake.conf.
+# They are [Unit] keys — systemd ignores them in [Service] ("Unknown key name",
+# 10s/5-attempt defaults apply instead, which an auto-restarting unit can trip
+# in ~15s). Install the drop-in with this unit; do not inline them here.
 
 [Service]
 Type=simple

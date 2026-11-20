@@ -124,13 +124,17 @@ just files:
 
 ```bash
 # From the repo root. Installs as USER units (recommended for dev hosts).
-mkdir -p ~/.config/systemd/user
+mkdir -p ~/.config/systemd/user ~/.config/systemd/user/duckbrain-http.service.d
 cp ops/systemd/duckbrain-http.service \
    ops/systemd/duckbrain-http-health.service \
    ops/systemd/duckbrain-http-health.timer \
    ops/systemd/duckbrain-http-recover.service \
    ops/systemd/duckbrain-http-recover.timer \
    ~/.config/systemd/user/
+# The crash-loop brake ships as a drop-in: StartLimit* are [Unit] keys, so the
+# base unit must not carry them and this file must be installed alongside it.
+cp ops/systemd/duckbrain-http.service.d/10-restart-brake.conf \
+   ~/.config/systemd/user/duckbrain-http.service.d/
 # The service asset also installs the crash-attribution wrapper at this path:
 # %h/duckbrain/scripts/crash-attribution.js
 systemctl --user daemon-reload
@@ -142,16 +146,20 @@ systemctl --user enable --now duckbrain-http-recover.timer
 What each asset guarantees:
 
 - `duckbrain-http.service` — `Restart=always` (a graceful stop is still
-  restarted), `RestartSec=3`, `StartLimitIntervalSec=300` +
-  `StartLimitBurst=10` (crash-loop rate limit; both are `[Unit]` keys — systemd
-  ignores them under `[Service]` and warns `Unknown key name`, so keep them in
-  the `[Unit]` section or a `[Unit]` drop-in), `KillSignal=SIGTERM` +
+  restarted), `RestartSec=3`, `KillSignal=SIGTERM` +
   `TimeoutStopSec=30` (bounded graceful window before SIGKILL). Edit
   `ExecStart` only to change the port or add flags; keep everything else.
   It also enforces `MemoryHigh=6442450944` (6G), `MemoryMax=8589934592`
   (8G), and `NODE_OPTIONS=--max-old-space-size=3072`. These limits preserve
   the discipline learned from the 2026-11-14 SEGV (4G RSS peak against a 4G
   MemoryHigh and a 9G swap peak); do not remove them during deployment.
+- `duckbrain-http.service.d/10-restart-brake.conf` — the crash-loop brake:
+  `StartLimitIntervalSec=300` + `StartLimitBurst=10`. Both are `[Unit]` keys —
+  systemd ignores them under `[Service]` and warns `Unknown key name`, which
+  silently leaves the 10s/5-attempt defaults in force (an auto-restarting unit
+  can exhaust those and stay down). This is why the brake ships as a drop-in
+  rather than inline in the base unit: copy the `*.service.d/` directory with
+  the unit, as the install block above does.
 - On every non-clean exit, `ExecStopPost` runs
   `scripts/crash-attribution.js`. It is a best-effort, bounded capture and
   never changes the service result. Evidence bundles land by default in

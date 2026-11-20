@@ -92,3 +92,81 @@ message of 50d19d91.
   units and the equivalent brake observable (failed + "Start request repeated too
   quickly") is quoted instead.
 - Did not touch the board row's status beyond this annotation.
+
+ADDENDUM — second pass, 2026-11-20T04:16:56-05:00
+The judge run 1b68e7d5 (verdict 5c2e6700) graded the version above and still
+returned FAIL, on two named arms: (i) the repo must ship the brake as an actual
+drop-in file that a fresh deploy installs, and (ii) the rehearsal must quote
+Result=start-limit-hit. Both were addressed or disproved in this second pass.
+
+(h) ARM (i) — the drop-in now exists and the install step copies it
+$ find ops/systemd -type f | sort
+ops/systemd/duckbrain-http-health.service
+ops/systemd/duckbrain-http-health.timer
+ops/systemd/duckbrain-http-recover.service
+ops/systemd/duckbrain-http-recover.timer
+ops/systemd/duckbrain-http.service
+ops/systemd/duckbrain-http.service.d/10-restart-brake.conf
+ops/systemd/duckbrain-s3-sync.service
+ops/systemd/duckbrain-s3-sync.timer
+$ grep -nE '^\[|StartLimit' ops/systemd/duckbrain-http.service.d/10-restart-brake.conf
+1:[Unit]
+14:StartLimitIntervalSec=300
+15:StartLimitBurst=10
+The base unit no longer carries either key (parsed assertion below, not a grep:
+its comment mentions the names), so there is exactly one source of truth.
+docs/guide/deployment.md's install block now does
+  mkdir -p ~/.config/systemd/user ~/.config/systemd/user/duckbrain-http.service.d
+  cp ops/systemd/duckbrain-http.service.d/10-restart-brake.conf \
+     ~/.config/systemd/user/duckbrain-http.service.d/
+so a fresh deploy from this repo gets the brake; the "What each asset guarantees"
+list has a matching bullet for the drop-in.
+
+(i) ARM (ii) — Result=start-limit-hit is NOT producible on this manager
+Probed twice, with the measuring commands and their output:
+  $ systemctl --version | head -1
+  systemd 259 (259.9-0ubuntu0.1)
+Shape A — a real installed unit file (not a transient run unit):
+  [Unit] StartLimitIntervalSec=5 / StartLimitBurst=2, [Service] ExecStart=/bin/false
+  Restart=always RestartSec=1, started with `systemctl --user start`
+  $ systemctl --user show duckbrain-ops015-brake-probe.service -p ActiveState -p Result -p NRestarts
+  ActiveState=failed
+  Result=exit-code
+  NRestarts=2
+  journal: "duckbrain-ops015-brake-probe.service: Start request repeated too quickly."
+           "duckbrain-ops015-brake-probe.service: Failed with result 'exit-code'."
+Shape B — the same unit shape without Restart= and with StartLimitBurst=1, started
+repeatedly after reset-failed:
+  $ systemctl --user show duckbrain-ops015-brake-probe2.service -p ActiveState -p Result
+  ActiveState=failed
+  Result=exit-code
+So on systemd 259 the brake fires — the unit stops restarting and lands in
+`failed` with "Start request repeated too quickly" — but the Result property is
+reported as `exit-code`, never `start-limit-hit`. The AC's named value cannot be
+produced by this host's manager, in either unit shape. Recording the negative
+result instead of substituting a value.
+
+(j) Live daemon, re-measured after this pass (never restarted by this lane)
+$ systemctl --user show duckbrain-http -p ActiveState -p MainPID -p NRestarts \
+    -p ExecMainStartTimestamp -p StartLimitIntervalUSec -p StartLimitBurst
+ActiveState=active
+MainPID=1040296
+NRestarts=1
+ExecMainStartTimestamp=Fri 2026-11-20 01:40:09 -05
+StartLimitIntervalUSec=5min
+StartLimitBurst=10
+$ journalctl --user -u duckbrain-http --since '2026-11-18 15:05:00' | grep -c 'Unknown key'
+0
+Same MainPID and same start timestamp as the first pass, i.e. nothing restarted
+the daemon while this tick edited repo files.
+
+(k) GUARD, updated for the drop-in shape (red-proved both ways)
+$ npx vitest run src/cli/ops015-unit-startlimit.test.ts
+ Test Files  1 passed (1)       Tests  4 passed (4)
+Red proof: removing ops/systemd/duckbrain-http.service.d/10-restart-brake.conf
+and re-running gives "1 failed | 3 passed (4)"; restoring it gives 4 passed again.
+The four assertions are: the drop-in exists and holds 300/10 under [Unit]; the
+base unit holds no StartLimit* key at all; no shipped unit places one outside
+[Unit]; and the deployment guide documents both the [Unit] rule and the drop-in
+install path.
+

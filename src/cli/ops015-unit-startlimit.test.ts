@@ -1,29 +1,44 @@
 /**
- * OPS-015 regression: StartLimitIntervalSec / StartLimitBurst are [Unit] keys.
- * systemd ignores them inside [Service] ("Unknown key name ... ignoring") and
- * falls back to the 10s/5-attempt defaults, so an auto-restarting unit can trip
- * the brake in ~15s instead of the intended 300s/10 burst. The shipped deploy
- * asset must therefore keep them under [Unit]; otherwise a fresh deploy from
- * this repo re-introduces the inert brake that OPS-015 fixed on the live host.
+ * OPS-015 regression: the duckbrain-http crash-loop brake must ship as a
+ * [Unit]-section drop-in, and nowhere else.
  *
- * Hermetic: reads the repo's ops/systemd assets, no systemd, no sockets.
+ * StartLimitIntervalSec / StartLimitBurst are [Unit] keys. systemd ignores them
+ * inside [Service] ("Unknown key name ... ignoring") and falls back to the
+ * 10s/5-attempt defaults, so an auto-restarting unit can trip the brake in
+ * ~15s instead of the intended 300s/10 burst — the defect OPS-015 fixed on the
+ * live host on 2026-11-18.
+ *
+ * Because the brake lives in a drop-in, a fresh deploy only gets it if the repo
+ * ships `ops/systemd/duckbrain-http.service.d/` AND the documented install step
+ * copies that directory. Both are asserted here, so the inert-brake regression
+ * cannot come back through either path.
+ *
+ * Hermetic: reads the repo's ops/systemd assets and the deployment guide, no
+ * systemd, no network, no daemon.
  */
 
 import { describe, it, expect } from "vitest";
 import fs from "fs";
 import path from "path";
 
-const OPS_SYSTEMD_DIR = path.resolve(__dirname, "../../ops/systemd");
+const REPO_ROOT = path.resolve(__dirname, "../..");
+const OPS_SYSTEMD_DIR = path.join(REPO_ROOT, "ops/systemd");
+const DROPIN_DIR = path.join(OPS_SYSTEMD_DIR, "duckbrain-http.service.d");
+const DROPIN_FILE = path.join(DROPIN_DIR, "10-restart-brake.conf");
+const BASE_UNIT = path.join(OPS_SYSTEMD_DIR, "duckbrain-http.service");
+const DEPLOYMENT_GUIDE = path.join(REPO_ROOT, "docs/guide/deployment.md");
 const START_LIMIT_KEYS = ["StartLimitIntervalSec", "StartLimitBurst"];
 
 type ParsedUnit = {
   unitKeys: Record<string, string>;
   misplaced: string[];
+  anywhere: string[];
 };
 
 export function parseStartLimitPlacement(contents: string): ParsedUnit {
   const unitKeys: Record<string, string> = {};
   const misplaced: string[] = [];
+  const anywhere: string[] = [];
   let section = "";
   for (const rawLine of contents.split(/\r?\n/)) {
     const line = rawLine.trim();
@@ -36,10 +51,11 @@ export function parseStartLimitPlacement(contents: string): ParsedUnit {
     if (!match) continue;
     const [, key, value] = match;
     if (!START_LIMIT_KEYS.includes(key)) continue;
+    anywhere.push(`${section || "(no section)"} ${line}`);
     if (section === "[Unit]") unitKeys[key] = value.trim();
     else misplaced.push(`${section || "(no section)"} ${line}`);
   }
-  return { unitKeys, misplaced };
+  return { unitKeys, misplaced, anywhere };
 }
 
 function unitFiles(): string[] {
@@ -50,15 +66,22 @@ function unitFiles(): string[] {
     .sort();
 }
 
-describe("OPS-015 shipped systemd assets: StartLimit* placement", () => {
-  it("ships the http unit with StartLimit* under [Unit]", () => {
-    const unitPath = path.join(OPS_SYSTEMD_DIR, "duckbrain-http.service");
+describe("OPS-015 shipped systemd assets: crash-loop brake", () => {
+  it("ships the brake as a [Unit] drop-in with 300s / 10", () => {
+    expect(fs.existsSync(DROPIN_FILE)).toBe(true);
     const { unitKeys, misplaced } = parseStartLimitPlacement(
-      fs.readFileSync(unitPath, "utf8"),
+      fs.readFileSync(DROPIN_FILE, "utf8"),
     );
     expect(misplaced).toEqual([]);
     expect(unitKeys.StartLimitIntervalSec).toBe("300");
     expect(unitKeys.StartLimitBurst).toBe("10");
+  });
+
+  it("keeps the base unit free of StartLimit* (it lives in the drop-in)", () => {
+    const { anywhere } = parseStartLimitPlacement(
+      fs.readFileSync(BASE_UNIT, "utf8"),
+    );
+    expect(anywhere).toEqual([]);
   });
 
   it("never places a StartLimit key outside [Unit] in any shipped unit", () => {
@@ -71,11 +94,10 @@ describe("OPS-015 shipped systemd assets: StartLimit* placement", () => {
     expect(offenders).toEqual([]);
   });
 
-  it("documents the [Unit] requirement in the deployment guide", () => {
-    const guide = fs.readFileSync(
-      path.resolve(__dirname, "../../docs/guide/deployment.md"),
-      "utf8",
-    );
+  it("documents both the [Unit] requirement and the drop-in install step", () => {
+    const guide = fs.readFileSync(DEPLOYMENT_GUIDE, "utf8");
     expect(guide).toMatch(/`\[Unit\]` keys/);
+    expect(guide).toContain("duckbrain-http.service.d/10-restart-brake.conf");
+    expect(guide).toContain("duckbrain-http.service.d/");
   });
 });
