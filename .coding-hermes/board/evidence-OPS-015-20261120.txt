@@ -1,0 +1,94 @@
+OPS-015 — StartLimit brake: repo asset fix, guard test, live re-measurement
+Lane: duckbrain-ops   Tick: duckbrain-ops-2026-11-20-08-33-12
+Host: karaHermes-mde-7840hs   Measured: 2026-11-20T04:01:23-05:00
+Fix commit (published): 50d19d916b7ea571bd67d532900bd80dc9028b5f
+
+WHY THIS FILE EXISTS
+The 2026-11-18 pass fixed the LIVE host only: it wrote
+~/.config/systemd/user/duckbrain-http.service.d/10-restart-brake.conf and left the
+repository's own unit asset untouched. A judge run on 2026-11-20
+(.gitreins/history/2026-11-20/a01329f1, "Verdict saved: c60f5b6e") graded the
+pre-fix tree and returned tier1 PASS / tier2 INCOMPLETE with four findings, two of
+which are repo facts:
+  - ops/systemd/duckbrain-http.service kept StartLimitIntervalSec=300 and
+    StartLimitBurst=10 inside [Service] (inert: systemd ignores [Service] copies),
+    so a fresh deploy re-installed the defect;
+  - docs/guide/deployment.md documented the keys as ordinary service settings with
+    no [Unit] caveat;
+  - no in-repo guard prevented either from coming back.
+This tick fixes the shipped asset (not the live host), adds a hermetic guard, and
+re-measures every acceptance arm below.
+
+(a) ACCEPTANCE ARM 1 — the repo's shipped unit carries the brake in [Unit]
+$ awk '/^\[/{s=$0} /StartLimit|^\[/{print NR": "s" -> "$0}' ops/systemd/duckbrain-http.service
+1: [Unit] -> [Unit]
+4: [Unit] -> # OPS-015: StartLimit* are [Unit] keys — systemd ignores them in [Service]
+8: [Unit] -> # up (StartLimitAction=default = the unit enters failed state, which monitoring
+10: [Unit] -> StartLimitIntervalSec=300
+11: [Unit] -> StartLimitBurst=10
+13: [Service] -> [Service]
+37: [Install] -> [Install]
+No StartLimit key appears under [Service]; the next header after the keys is
+[Service] at line 13, so both keys resolve in [Unit].
+
+(b) ACCEPTANCE ARM 2 — the live manager reports 300s and burst 10
+$ systemctl --user show duckbrain-http -p StartLimitIntervalUSec -p StartLimitBurst \
+    -p ActiveState -p SubState -p MainPID -p NRestarts -p ExecMainStartTimestamp -p DropInPaths
+ActiveState=active
+SubState=running
+StartLimitIntervalUSec=5min
+StartLimitBurst=10
+MainPID=1040296
+NRestarts=1
+ExecMainStartTimestamp=Fri 2026-11-20 01:40:09 -05
+DropInPaths=...10-restart-brake.conf 20-embedding-routing.conf ...
+(5min = 300s, from the [Unit] drop-in 10-restart-brake.conf)
+
+(c) ACCEPTANCE ARM 3 — no Unknown-key parse warning after the daemon-reload
+$ journalctl --user -u duckbrain-http --since '2026-11-18 15:05:00' | grep -c "Unknown key"
+0
+Last warning of any age, for contrast:
+Nov 18 15:04:39 ... 10-restart-always.conf:6: Unknown key 'StartLimitIntervalSec' in
+section [Service], ignoring.
+So the warning stops at the 15:05 edit and does not recur.
+
+(d) ACCEPTANCE ARM 4 — bounded crash-loop rehearsal on a SCRATCH unit, never the live daemon
+Earlier this session a throwaway unit (systemd-run --user --unit=ops015-rehearsal-033617,
+Restart=always, RestartSec=2, StartLimitIntervalSec=10, StartLimitBurst=3, /bin/false)
+exhausted its burst and stopped restarting; `systemctl --user show` then reported
+ActiveState=failed and the journal carried "Start request repeated too quickly".
+CAVEAT, stated plainly: this manager (systemd 259) reported Result=exit-code for that
+transient unit, not Result=start-limit-hit — the 2026-11-18 evidence file says the same.
+The AC's observable is written as "start-limit-hit / ActiveState=failed"; the second
+form is what was produced and reproduced. No live restart was issued to test this:
+the live daemon's ExecMainStartTimestamp (2026-11-20 01:40:09 -05) predates every
+command in this tick (first probe 03:5x -05), and no systemctl restart/stop was run
+against duckbrain-http by this lane.
+
+(e) THE FIX ITSELF — bounded, reversible, inside the project repo
+ops/systemd/duckbrain-http.service: [Unit] now carries StartLimitIntervalSec=300 and
+StartLimitBurst=10 with the rationale comment; the [Service] copies are gone and a
+pointer comment says not to repeat them.
+docs/guide/deployment.md (lines ~145-147): states both keys are [Unit] keys and that
+systemd ignores them under [Service] while warning "Unknown key name".
+Reverting a fresh deploy to the old behaviour is `git revert 50d19d91`; the live host
+is untouched by this commit, so nothing on the running service changes.
+
+(f) THE GUARD (red-proved)
+src/cli/ops015-unit-startlimit.test.ts — hermetic vitest over ops/systemd assets,
+no daemon, no network. Current run:
+$ npx vitest run src/cli/ops015-unit-startlimit.test.ts
+ Test Files  1 passed (1)       Tests  3 passed (3)
+Red proof: re-adding StartLimitIntervalSec=300 / StartLimitBurst=10 under [Service]
+made 2 of the 3 tests fail (parseStartLimitPlacement reports them in `misplaced`);
+removing them made all 3 pass again. The two states are recorded in the commit
+message of 50d19d91.
+
+(g) WHAT THIS TICK DID NOT DO
+- Did not restart, stop, or crash-loop the live duckbrain-http daemon.
+- Did not edit the live drop-ins (~/.config/systemd/user/...): they were already
+  correct from the 2026-11-18 pass and are read-only evidence here.
+- Did not claim Result=start-limit-hit; this manager does not emit it for transient
+  units and the equivalent brake observable (failed + "Start request repeated too
+  quickly") is quoted instead.
+- Did not touch the board row's status beyond this annotation.
