@@ -3542,16 +3542,18 @@ tasks:
     ops/systemd/duckbrain-http.service keeps no StartLimit* in [Service]; docs/guide/deployment.md
     documents the drop-in; a bounded SCRATCH-unit crash-loop rehearsal produces Result=start-limit-hit
     with quoted output committed as evidence; live daemon never restarted
-  status: in_progress
+  status: complete
   created_at: '2026-11-20T08:44:54.749856+00:00'
+  completed_at: '2026-11-20T09:56:54.258761+00:00'
 - id: REST-RANGE-001
   title: 'REST-RANGE-001: Range/Content-Range support on table GET'
   criteria:
   - 'Range: 10-19 returns exactly rows 10-19 with Content-Range 10-19/<total|*>; Content-Range
     emitted on every table GET; count=planned|estimated documented or 400; from>=total
     returns 200 [] with Content-Range */<total>; route tests assert all three cases'
-  status: in_progress
+  status: complete
   created_at: '2026-11-20T08:44:55.882201+00:00'
+  completed_at: '2026-11-20T09:22:30.054776+00:00'
 - id: SDK-DIST-001
   title: 'SDK-DIST-001: make @duckbrain/sdk consumable outside the repo'
   criteria:
@@ -3560,5 +3562,16 @@ tasks:
     the packed tarball and imports by name with plain node; packages/sdk/README.md
     states the distribution path + exact install command; examples/sdk-quickstart
     imports by name
-  status: in_progress
+  status: complete
   created_at: '2026-11-20T08:44:57.088694+00:00'
+  completed_at: '2026-11-20T09:30:55.458105+00:00'
+- id: INT-CI-040
+  title: Sync test-counts.json to the live suite (GAP-012 drift closes)
+  criteria:
+  - test-counts.json equals the live suite totals and 'scripts/sync-agents-md-counts.sh
+    --check' reports a match on the merged tree; the manifest is regenerated in the
+    same commit that changes suite/test counts, and the 300/2520 totals are justified
+    by the landed tests rather than hand-typed.
+  status: complete
+  created_at: '2026-11-20T10:03:53.163923+00:00'
+  completed_at: '2026-11-20T10:03:54.442231+00:00'
