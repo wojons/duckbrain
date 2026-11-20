@@ -3535,11 +3535,30 @@ tasks:
   created_at: '2026-11-17T10:51:17.226231+00:00'
   completed_at: '2026-11-17T10:53:00.188661+00:00'
 - id: OPS-015
-  title: 'duckbrain-http restart brake: move StartLimit keys to a [Unit] drop-in'
+  title: 'OPS-015: ship the [Unit] start-limit brake drop-in in the repo and prove
+    start-limit-hit'
   criteria:
-  - StartLimitIntervalSec=300 and StartLimitBurst=10 live in a [Unit]-section drop-in;
-    systemctl --user show duckbrain-http -p StartLimitIntervalUSec reports 300s; journalctl
-    shows no Unknown-key warning after daemon-reload; bounded crash-loop rehearsal
-    on a SCRATCH unit ends start-limit-hit/ActiveState=failed; live daemon never restarted
+  - ops/systemd ships a [Unit]-section drop-in with StartLimitIntervalSec=300/StartLimitBurst=10;
+    ops/systemd/duckbrain-http.service keeps no StartLimit* in [Service]; docs/guide/deployment.md
+    documents the drop-in; a bounded SCRATCH-unit crash-loop rehearsal produces Result=start-limit-hit
+    with quoted output committed as evidence; live daemon never restarted
   status: in_progress
-  created_at: '2026-11-18T13:51:10.597542+00:00'
+  created_at: '2026-11-20T08:44:54.749856+00:00'
+- id: REST-RANGE-001
+  title: 'REST-RANGE-001: Range/Content-Range support on table GET'
+  criteria:
+  - 'Range: 10-19 returns exactly rows 10-19 with Content-Range 10-19/<total|*>; Content-Range
+    emitted on every table GET; count=planned|estimated documented or 400; from>=total
+    returns 200 [] with Content-Range */<total>; route tests assert all three cases'
+  status: in_progress
+  created_at: '2026-11-20T08:44:55.882201+00:00'
+- id: SDK-DIST-001
+  title: 'SDK-DIST-001: make @duckbrain/sdk consumable outside the repo'
+  criteria:
+  - dedicated tsconfig emits dist/index.js + d.ts, package.json exports/files point
+    at dist; build wired into repo build; consumer test in a temp project installs
+    the packed tarball and imports by name with plain node; packages/sdk/README.md
+    states the distribution path + exact install command; examples/sdk-quickstart
+    imports by name
+  status: in_progress
+  created_at: '2026-11-20T08:44:57.088694+00:00'
