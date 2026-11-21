@@ -39,6 +39,7 @@ import {
   type AchievedWriteMode,
   type WriteMode,
 } from "../storage/durability.js";
+import { compareChunkNames } from "../storage/jsonl.js";
 import { ApiError } from "../http/middleware/errorHandler.js";
 import {
   applyDeclaredReadCompat,
@@ -138,8 +139,33 @@ export function resolveTableFiles(
   const hasWildcard = parts.some((p) => p.includes("*") || p.includes("?"));
   if (!hasWildcard) {
     const abs = path.resolve(nsDir, pattern);
-    if (fs.existsSync(abs) && fs.statSync(abs).isFile()) {
-      files.push({ absPath: abs, sqlPath: abs.replace(/\\/g, "/") });
+    // DB-GAP-067: NamespaceWriter rotates an exact current.jsonl target into
+    // numbered siblings at its storage bounds. current.jsonl is the base
+    // snapshot, not the whole table; serve current first, then every numeric
+    // append segment in numeric order. Non-current exact paths keep their
+    // historical single-file meaning.
+    const candidates =
+      path.basename(abs) === "current.jsonl" && fs.existsSync(path.dirname(abs))
+        ? [
+            abs,
+            ...fs
+              .readdirSync(path.dirname(abs), { withFileTypes: true })
+              .filter(
+                (entry) =>
+                  entry.isFile() && /^\d+\.jsonl$/.test(entry.name),
+              )
+              .map((entry) => entry.name)
+              .sort(compareChunkNames)
+              .map((name) => path.join(path.dirname(abs), name)),
+          ]
+        : [abs];
+    for (const candidate of candidates) {
+      if (fs.existsSync(candidate) && fs.statSync(candidate).isFile()) {
+        files.push({
+          absPath: candidate,
+          sqlPath: candidate.replace(/\\/g, "/"),
+        });
+      }
     }
     return files;
   }

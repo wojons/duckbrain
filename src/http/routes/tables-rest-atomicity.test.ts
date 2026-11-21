@@ -407,3 +407,77 @@ describe("REST-ATOMICITY-001: the new verbs are in the generated OpenAPI", () =>
     ).toBe("run_table_transaction");
   });
 });
+
+describe("DB-GAP-067: current.jsonl plus numbered table partitions", () => {
+  it("serves and updates historical and freshly rotated partition-only rows", async () => {
+    const current = path.join(nsDir, "tables/customers/current.jsonl");
+    const partition = path.join(nsDir, "tables/customers/0001.jsonl");
+    const seedRows = Array.from({ length: 1000 }, (_, index) =>
+      JSON.stringify({ id: `seed-${index}`, name: `Seed ${index}`, tier: null }),
+    );
+    fs.writeFileSync(current, seedRows.join("\n") + "\n");
+    writeFile("tables/customers/0001.jsonl", [
+      JSON.stringify({ id: "partition-only", name: "Historical", tier: null }),
+    ]);
+
+    const app = createApp();
+    const inserted = await httpRequest(app, "POST", `${base}/customers`, {
+      body: { id: "fresh-partition-row", name: "Fresh", tier: null },
+    });
+    expect(inserted.status).toBe(201);
+    expect(inserted.body).toEqual({ inserted: 1 });
+
+    // Prove the write really rotated: the fresh row is not in current.jsonl.
+    // The pre-fix reader only opened current.jsonl, so every assertion below
+    // depending on either partition-only id failed against that reader.
+    expect(fs.readFileSync(current, "utf8")).not.toContain(
+      "fresh-partition-row",
+    );
+    const partitionText = fs.readFileSync(partition, "utf8");
+    expect(partitionText).toContain("partition-only");
+    expect(partitionText).toContain("fresh-partition-row");
+
+    const listed = await httpRequest(
+      app,
+      "GET",
+      `${base}/customers?count=exact&limit=1`,
+    );
+    expect(listed.status).toBe(200);
+    expect(listed.headers["x-total-count"]).toBe("1002");
+
+    for (const id of ["partition-only", "fresh-partition-row"]) {
+      const read = await httpRequest(
+        app,
+        "GET",
+        `${base}/customers?id=eq.${id}`,
+      );
+      expect(read.status).toBe(200);
+      expect(read.body).toHaveLength(1);
+      expect(read.body[0].id).toBe(id);
+    }
+
+    // The sync PATCHes before it POSTs. Partition visibility must therefore
+    // cover the mutation lookup too, not only SELECT, or it would append a
+    // duplicate on every reconciliation.
+    const patched = await httpRequest(
+      app,
+      "PATCH",
+      `${base}/customers?pk=eq.partition-only`,
+      { body: { name: "Updated in partition" } },
+    );
+    expect(patched.status).toBe(200);
+    expect(patched.body).toEqual({ updated: 1 });
+    const updated = await httpRequest(
+      app,
+      "GET",
+      `${base}/customers?id=eq.partition-only`,
+    );
+    expect(updated.body).toHaveLength(1);
+    expect(updated.body[0].name).toBe("Updated in partition");
+
+    const duplicate = await httpRequest(app, "POST", `${base}/customers`, {
+      body: { id: "fresh-partition-row", name: "Duplicate", tier: null },
+    });
+    expect(duplicate.status).toBe(409);
+  });
+});
