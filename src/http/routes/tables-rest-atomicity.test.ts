@@ -409,11 +409,15 @@ describe("REST-ATOMICITY-001: the new verbs are in the generated OpenAPI", () =>
 });
 
 describe("DB-GAP-067: current.jsonl plus numbered table partitions", () => {
-  it("serves and updates historical and freshly rotated partition-only rows", async () => {
+  it("serves, updates, and deletes historical and freshly rotated partition-only rows", async () => {
     const current = path.join(nsDir, "tables/customers/current.jsonl");
     const partition = path.join(nsDir, "tables/customers/0001.jsonl");
     const seedRows = Array.from({ length: 1000 }, (_, index) =>
-      JSON.stringify({ id: `seed-${index}`, name: `Seed ${index}`, tier: null }),
+      JSON.stringify({
+        id: `seed-${index}`,
+        name: `Seed ${index}`,
+        tier: null,
+      }),
     );
     // The same PK has an older materialized version AND two append versions.
     // The served view is one newest row per PK, not a raw union of every
@@ -430,6 +434,17 @@ describe("DB-GAP-067: current.jsonl plus numbered table partitions", () => {
     ]);
 
     const app = createApp();
+    // seed-0 was overwritten, leaving 999 seed ids + partition-only = 1000
+    // distinct rows. The fresh insert adds one, for 1001; duplicate images of
+    // partition-only add zero to both counts.
+    const initial = await httpRequest(
+      app,
+      "GET",
+      `${base}/customers?count=exact&limit=1`,
+    );
+    expect(initial.status).toBe(200);
+    expect(initial.headers["x-total-count"]).toBe("1000");
+
     const inserted = await httpRequest(app, "POST", `${base}/customers`, {
       body: { id: "fresh-partition-row", name: "Fresh", tier: null },
     });
@@ -478,7 +493,8 @@ describe("DB-GAP-067: current.jsonl plus numbered table partitions", () => {
 
     // The sync PATCHes before it POSTs. Partition visibility must therefore
     // cover the mutation lookup too, not only SELECT, or it would append a
-    // duplicate on every reconciliation.
+    // duplicate on every reconciliation. Only the newest physical image is
+    // patched; the stale images stay untouched but remain shadowed.
     const patched = await httpRequest(
       app,
       "PATCH",
@@ -486,7 +502,9 @@ describe("DB-GAP-067: current.jsonl plus numbered table partitions", () => {
       { body: { name: "Updated in partition" } },
     );
     expect(patched.status).toBe(200);
-    expect(patched.body).toEqual({ updated: 3 });
+    expect(patched.body).toEqual({ updated: 1 });
+    expect(fs.readFileSync(current, "utf8")).toContain("Stale current");
+    expect(fs.readFileSync(partition, "utf8")).toContain('"name":"Middle"');
     const updated = await httpRequest(
       app,
       "GET",
@@ -500,5 +518,31 @@ describe("DB-GAP-067: current.jsonl plus numbered table partitions", () => {
       body: { id: "fresh-partition-row", name: "Duplicate", tier: null },
     });
     expect(duplicate.status).toBe(409);
+
+    const deleted = await httpRequest(
+      app,
+      "DELETE",
+      `${base}/customers?pk=eq.partition-only`,
+    );
+    expect(deleted.status).toBe(200);
+    expect(deleted.body).toEqual({ deleted: 1 });
+    const afterDelete = await httpRequest(
+      app,
+      "GET",
+      `${base}/customers?id=eq.partition-only&count=exact`,
+    );
+    expect(afterDelete.status).toBe(200);
+    expect(afterDelete.body).toEqual([]);
+    expect(afterDelete.headers["x-total-count"]).toBe("0");
+    const remaining = await httpRequest(
+      app,
+      "GET",
+      `${base}/customers?count=exact&limit=1`,
+    );
+    expect(remaining.status).toBe(200);
+    expect(remaining.headers["x-total-count"]).toBe("1000");
+    // Removing only the newest image would resurrect Stale current or Middle.
+    expect(fs.readFileSync(current, "utf8")).not.toContain("partition-only");
+    expect(fs.readFileSync(partition, "utf8")).not.toContain("partition-only");
   });
 });

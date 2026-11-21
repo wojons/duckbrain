@@ -136,11 +136,20 @@ function buildServedReadSqlForFiles(
   const readSql = buildReadSqlForFiles(files, declaration);
   if (!foldsCurrentPartitions(declaration)) return readSql;
 
-  // An append log stores successive versions of one primary key. Sequence the
-  // physical JSONL scan first (file-list order, then line order), then keep
-  // the newest version. The outer projection exposes only declared columns.
+  // An append log stores successive versions of one primary key. Sequence each
+  // file independently so a higher numbered segment always outranks current
+  // and every older segment; row_number over each single-file scan retains
+  // later-line-wins within that segment. Never derive version order from the
+  // unordered UNION ALL as a whole.
+  const projection = declaration.columns
+    .map((column) => quoteIdentifier(column.name))
+    .join(", ");
   const pk = quoteIdentifier(declaration.primary!);
-  return `(SELECT * FROM (SELECT *, ROW_NUMBER() OVER (PARTITION BY ${pk} ORDER BY __dbgap_source_seq DESC) AS __dbgap_version_rank FROM (SELECT *, ROW_NUMBER() OVER () AS __dbgap_source_seq FROM ${readSql}) AS __dbgap_sequenced) AS __dbgap_ranked WHERE __dbgap_version_rank = 1 ORDER BY __dbgap_source_seq)`;
+  const images = files.map((file, fileOrder) => {
+    const fileRead = buildReadSqlForFiles([file], declaration);
+    return `SELECT ${fileOrder} AS __dbgap_file_seq, ROW_NUMBER() OVER () AS __dbgap_line_seq, * FROM ${fileRead}`;
+  });
+  return `(SELECT ${projection} FROM (SELECT *, ROW_NUMBER() OVER (PARTITION BY ${pk} ORDER BY __dbgap_file_seq DESC, __dbgap_line_seq DESC) AS __dbgap_version_rank FROM (${images.join(" UNION ALL ")}) AS __dbgap_sequenced) AS __dbgap_ranked WHERE __dbgap_version_rank = 1 ORDER BY __dbgap_file_seq, __dbgap_line_seq)`;
 }
 
 /**
@@ -1098,8 +1107,9 @@ function rewriteWithPredicate(
   patchMerge?: (row: Record<string, unknown>) => Record<string, unknown> | null,
   upsert?: boolean,
   mode: WriteMode = "buffered",
+  target?: RowLineLocation | null,
 ): MutationOutcome {
-  const files = resolveTableFiles(nsDir, declaration);
+  const files = target === null ? [] : resolveTableFiles(nsDir, declaration);
   let mutated = 0;
   // Nothing written yet: the achieved mode is still reported (the route uses
   // it for the header) but is only a claim about a write that never happened.
@@ -1107,8 +1117,15 @@ function rewriteWithPredicate(
   for (const file of files) {
     const lines = fs.readFileSync(file.absPath, "utf-8").split("\n");
     const out: string[] = [];
-    for (const line of lines) {
+    for (const [lineIndex, line] of lines.entries()) {
       if (!line.trim()) continue;
+      if (
+        target != null &&
+        (file.absPath !== target.filePath || lineIndex !== target.lineIndex)
+      ) {
+        out.push(line);
+        continue;
+      }
       let parsed: unknown;
       try {
         parsed = JSON.parse(line);
@@ -1237,6 +1254,8 @@ export function findRowByPk(
 export interface RowLineLocation {
   /** Absolute path of the JSONL file that carries the row. */
   filePath: string;
+  /** Zero-based physical line index within that JSONL file. */
+  lineIndex: number;
   /** Serialized line exactly as stored (compact JSON, no newline). */
   line: string;
   /** Row image in API shape (object keyed by column name). */
@@ -1270,9 +1289,11 @@ export function findRowLineByPk(
     } catch {
       continue;
     }
-    const lines = content.split("\n");
+    const lines = content
+      .split("\n")
+      .map((line, lineIndex) => ({ line, lineIndex }));
     if (newestFirst) lines.reverse();
-    for (const line of lines) {
+    for (const { line, lineIndex } of lines) {
       if (!line.trim()) continue;
       let parsed: unknown;
       try {
@@ -1293,7 +1314,7 @@ export function findRowLineByPk(
         continue;
       const record = row as Record<string, unknown>;
       if (cmp(record[pkCol.name]))
-        return { filePath: file.absPath, line, row: record };
+        return { filePath: file.absPath, lineIndex, line, row: record };
     }
   }
   return null;
@@ -1301,9 +1322,10 @@ export function findRowLineByPk(
 
 /**
  * PATCH by declared primary key. `pkValue` is the raw operand string from
- * the `pk=eq.<v>` filter. Updates rewrite every matching row in every
- * matching file; when nothing matched and the caller passes `upsertBody`,
- * the body is appended as a new row instead.
+ * the `pk=eq.<v>` filter. An exact current.jsonl declaration updates only the
+ * newest physical image (one logical row); other declarations retain their
+ * historical rewrite-every-match behavior. When nothing matched and the
+ * caller passes `upsertBody`, the body is appended as a new row instead.
  *
  * DB-SUPA-2: the audit record for an accepted mutation is appended by the
  * route through the namespace writer (`NamespaceWriter.enqueueAudit`) — this
@@ -1318,6 +1340,9 @@ export function patchRowsByPk(
   opts: { upsertBody?: Record<string, unknown>; mode?: WriteMode } = {},
 ): MutationOutcome {
   const cmp = pkCompareValue(pkCol, pkValue);
+  const target = foldsCurrentPartitions(declaration)
+    ? findRowLineByPk(nsDir, declaration, pkCol, pkValue)
+    : undefined;
   const outcome = rewriteWithPredicate(
     nsDir,
     declaration,
@@ -1329,6 +1354,7 @@ export function patchRowsByPk(
     },
     opts.upsertBody !== undefined,
     opts.mode ?? "buffered",
+    target,
   );
 
   if (outcome.mutated === 0 && opts.upsertBody !== undefined) {
@@ -1345,7 +1371,9 @@ export function patchRowsByPk(
 }
 
 /**
- * DELETE by declared primary key. Returns the number of rows removed.
+ * DELETE by declared primary key. Returns the number of logical rows removed.
+ * A versioned current.jsonl table drops every shadowed physical image too;
+ * deleting only the newest would make an older image visible again.
  *
  * DB-SUPA-2: the audit record for an accepted mutation is appended by the
  * route through the namespace writer (`NamespaceWriter.enqueueAudit`).
@@ -1358,7 +1386,7 @@ export function deleteRowsByPk(
   mode: WriteMode = "buffered",
 ): MutationOutcome {
   const cmp = pkCompareValue(pkCol, pkValue);
-  return rewriteWithPredicate(
+  const outcome = rewriteWithPredicate(
     nsDir,
     declaration,
     (row) => cmp(row[pkCol.name]),
@@ -1367,6 +1395,10 @@ export function deleteRowsByPk(
     undefined,
     mode,
   );
+  if (foldsCurrentPartitions(declaration) && outcome.mutated > 0) {
+    outcome.mutated = 1;
+  }
+  return outcome;
 }
 
 /** Build an in-memory row-value comparator for a pk operand string. */
