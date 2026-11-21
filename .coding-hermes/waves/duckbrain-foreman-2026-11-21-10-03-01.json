@@ -1,0 +1,34 @@
+{
+  "tick": "duckbrain-foreman-2026-11-21-10-03-01",
+  "block": "CLI-GODMODE-001",
+  "path": "serial",
+  "slots": 1,
+  "slots_reason": "nproc=16 loadavg=54.52 -> max(1, min(6, 16-ceil(54.52))) = 1; WAVE_BUDGET=10 is the ceiling, the box binds at 1. Independently, every one of the top-10 blocks is a singleton (block_drive: 1 ready row each), so no wave was composable even at higher slots.",
+  "resume_note": "RESUME FIRST applied: the previous manifest (duckbrain-foreman-2026-11-20-20-30-12) named CLI-GODMODE-001, which still had a ready row (done=0/1, pending=1). That tick timed out after 4h21m leaving UNCOMMITTED WIP at base bdacd820; the row was resumed from that tree rather than re-implemented.",
+  "wip_resume": {
+    "inherited_state": "8 modified files + 1 new test (src/http/cli-godmode.test.ts) at base bdacd820, branch wt/CLI-GODMODE-001 with 0 commits",
+    "foreman_verification": "npx vitest run in the worktree: 301 files / 2521 tests passed at the inherited WIP — the implementation was already functionally complete and green",
+    "foreman_direct_delta": "removed one redundant branch in src/cli/http.ts that re-listed token/pull/push/remote/ssh-connect as reachable once everything else already denied 403 (surface-truth cleanup, one file, four lines); no other code change was made by the foreman"
+  },
+  "rows": [
+    {
+      "id": "CLI-GODMODE-001",
+      "status": "landed",
+      "worktree": "/home/kara/worktrees/duckbrain-CLI-GODMODE-001",
+      "branch": "wt/CLI-GODMODE-001",
+      "base_sha": "bdacd820",
+      "commit": "ba6d9871",
+      "commit_pre_rebase": "32f8a79f",
+      "rebase": "rebased onto origin/main b67db2b7 to preserve the board's waved manifest; 0 deletions vs origin/main after rebase",
+      "model": "openai/gpt-6.1-terra@xkiro (inherited worker session local-b74139, 114 msgs, died without ended_at)",
+      "gitreins_task": "CLI-GODMODE-001",
+      "gates": {
+        "worktree_full_suite": "npx vitest run -> 301 files / 2521 tests passed",
+        "ac7_arm": "npx vitest run src/cli/ src/http/cli-godmode.test.ts -> 58 files / 448 tests passed",
+        "typecheck": "npx tsc -p tsconfig.json --noEmit -> clean",
+        "merged_tree_suite": "npx vitest run on main after ff merge"
+      },
+      "verification_arm": "`npx vitest run src/cli/` exits 0 with the new /cli authorization case green (a writer token scoped to one namespace receives 403 for verbs outside its grant)"
+    }
+  ]
+}

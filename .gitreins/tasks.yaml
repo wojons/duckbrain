@@ -3575,3 +3575,19 @@ tasks:
   status: complete
   created_at: '2026-11-20T10:03:53.163923+00:00'
   completed_at: '2026-11-20T10:03:54.442231+00:00'
+- id: CLI-GODMODE-001
+  title: POST /cli role scoping, credential-verb removal, honest contract, audit
+  criteria:
+  - "1) Writer token scoped to one namespace gets 403 for every command outside its\
+    \ grant (new test; existing /cli suite runs authType none only). 2) token, pull,\
+    \ push, remote, ssh-connect unreachable over HTTP \u2014 asserted by test and\
+    \ live probe (writer token cannot mint a credential). 3) Honest contract: command\
+    \ completes within deadline with structured stdout and exitCode 0, or route answers\
+    \ 5xx \u2014 never 200 with {error, exitCode:1}; no deadline shorter than child\
+    \ bootstrap. 4) Every invocation appends one audit line (principal, command, args\
+    \ hash, outcome) including denials. 5) capabilities.ts and surface-parity stop\
+    \ describing POST /cli as working unless it is. 6) test-counts bumped, full vitest\
+    \ suite green."
+  status: complete
+  created_at: '2026-11-20T20:42:04.709268+00:00'
+  completed_at: '2026-11-21T11:20:31.381275+00:00'

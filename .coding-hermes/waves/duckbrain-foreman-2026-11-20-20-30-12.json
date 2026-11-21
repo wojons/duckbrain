@@ -13,9 +13,11 @@
       "branch": "wt/CLI-GODMODE-001",
       "base_sha": "bdacd820",
       "brief": "/tmp/brief-CLI-GODMODE-001-t2033.txt",
-      "model": "openai/gpt-6.1-terra",
-      "provider": "xkiro",
-      "gitreins_task": "CLI-GODMODE-001"
+      "model": "cx/gpt-6.1-terra",
+      "provider": "custom(synthetic→9router chain)",
+      "gitreins_task": "CLI-GODMODE-001",
+      "dispatch": "hermes -z (gateway WS session.create degraded under load; oneshot path verified)",
+      "model_switch_reason": "xkiro refused for billing/credits 15:51:08Z agent.log — actual unavailability, tick-authorized switch; cx/gpt-6.1-terra = verified same-gen lane"
     }
   ]
 }

@@ -1600,3 +1600,5 @@
 {"id":8769,"timestamp":"2026-11-21 06:20:28.358004","event_type":"task_updated","task_id":"QA-DUCKBRAIN-031","actor":"foreman","renumbered_from":null,"detail":"{\"status\":\"pending\"}","tick_number":null,"ts":null}
 {"id":8770,"timestamp":"2026-11-21 06:20:28.474273","event_type":"task_updated","task_id":"QA-DUCKBRAIN-FOREMAN-3","actor":"foreman","renumbered_from":null,"detail":"{\"status\":\"pending\"}","tick_number":null,"ts":null}
 {"id":8771,"timestamp":"2026-11-21 07:35:59.932292","event_type":"task_created","task_id":"PERF-DUCKBRAIN-003","actor":"foreman","renumbered_from":null,"detail":"{\"id\":\"PERF-DUCKBRAIN-003\",\"status\":\"pending\"}","tick_number":null,"ts":null}
+{"id":8772,"timestamp":"2026-11-21 11:20:09.410142","event_type":"task_completed","task_id":"CLI-GODMODE-001","actor":"foreman","renumbered_from":null,"detail":"{\"status\":\"complete\"}","tick_number":null,"ts":null}
+{"id":8773,"timestamp":"2026-11-21 11:22:14.420913","event_type":"task_created","task_id":"JUDGE-DUCKBRAIN-002","actor":"foreman","renumbered_from":null,"detail":"{\"id\":\"JUDGE-DUCKBRAIN-002\",\"status\":\"pending\"}","tick_number":null,"ts":null}
