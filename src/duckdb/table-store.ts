@@ -119,6 +119,30 @@ interface DiscoveredFile {
   sqlPath: string;
 }
 
+function foldsCurrentPartitions(declaration: TableDeclaration): boolean {
+  return (
+    declaration.primary !== null &&
+    declaration.primary !== undefined &&
+    !/[?*[\]]/.test(declaration.glob) &&
+    path.basename(declaration.glob) === "current.jsonl"
+  );
+}
+
+/** Build the read source for a declared primary-key table's current view. */
+function buildServedReadSqlForFiles(
+  files: DiscoveredFile[],
+  declaration: TableDeclaration,
+): string {
+  const readSql = buildReadSqlForFiles(files, declaration);
+  if (!foldsCurrentPartitions(declaration)) return readSql;
+
+  // An append log stores successive versions of one primary key. Sequence the
+  // physical JSONL scan first (file-list order, then line order), then keep
+  // the newest version. The outer projection exposes only declared columns.
+  const pk = quoteIdentifier(declaration.primary!);
+  return `(SELECT * FROM (SELECT *, ROW_NUMBER() OVER (PARTITION BY ${pk} ORDER BY __dbgap_source_seq DESC) AS __dbgap_version_rank FROM (SELECT *, ROW_NUMBER() OVER () AS __dbgap_source_seq FROM ${readSql}) AS __dbgap_sequenced) AS __dbgap_ranked WHERE __dbgap_version_rank = 1 ORDER BY __dbgap_source_seq)`;
+}
+
 /**
  * Resolve a declared table's glob to the concrete JSONL files that exist
  * right now. A glob that matches nothing is valid (empty table) — SELECT
@@ -802,7 +826,7 @@ export async function executeSelectPlan(
       if (files.length === 0) {
         totalCount = 0;
       } else {
-        const countRead = buildReadSqlForFiles(files, declaration);
+        const countRead = buildServedReadSqlForFiles(files, declaration);
         const sql = countSql.replace(READ_SOURCE_SENTINEL, () => countRead);
         const rows = await allAsync(db, sql, countParams);
         totalCount = Number(rows[0]?.__total_count ?? 0);
@@ -810,7 +834,7 @@ export async function executeSelectPlan(
     }
 
     if (files.length === 0) return { rows: [], totalCount };
-    const readSql = buildReadSqlForFiles(files, declaration);
+    const readSql = buildServedReadSqlForFiles(files, declaration);
     const rows = await allAsync(
       db,
       plan.sql.replace(READ_SOURCE_SENTINEL, () => readSql),
@@ -1145,10 +1169,12 @@ function rewriteWithPredicate(
 }
 
 /**
- * Read the row a PATCH/DELETE targets: the FIRST row in the table's resolved
- * files whose declared key column matches `pkValue`, in API row shape (an
- * object keyed by column name — a `jsonl-positional` stored array is projected
- * through the declared column order). `null` when nothing matches.
+ * Read the row a PATCH/DELETE targets. Exact current.jsonl declarations use
+ * the newest stored primary-key version; other declarations retain their
+ * historical first match in resolved file order. The row is returned in API
+ * row shape (an object keyed by column name — a `jsonl-positional` stored
+ * array is projected through the declared column order). `null` when nothing
+ * matches.
  *
  * DB-SUPA-2: PATCH validates the MERGED row (this row + the request body), so
  * a partial patch stays legal while every declared constraint is still enforced
@@ -1161,14 +1187,19 @@ export function findRowByPk(
   pkValue: string,
 ): Record<string, unknown> | null {
   const cmp = pkCompareValue(pkCol, pkValue);
-  for (const file of resolveTableFiles(nsDir, declaration)) {
+  const newestFirst = foldsCurrentPartitions(declaration);
+  const files = resolveTableFiles(nsDir, declaration);
+  if (newestFirst) files.reverse();
+  for (const file of files) {
     let content: string;
     try {
       content = fs.readFileSync(file.absPath, "utf-8");
     } catch {
       continue;
     }
-    for (const line of content.split("\n")) {
+    const lines = content.split("\n");
+    if (newestFirst) lines.reverse();
+    for (const line of lines) {
       if (!line.trim()) continue;
       let parsed: unknown;
       try {
@@ -1213,13 +1244,14 @@ export interface RowLineLocation {
 }
 
 /**
- * Locate the FIRST row matching a primary-key value, returning its file path,
- * its exact on-disk line, and its API-shaped row image. `null` when no file
- * carries a match.
+ * Locate the newest matching primary-key row for an exact current.jsonl
+ * declaration (or the first match for other declarations), returning its file
+ * path, its exact on-disk line, and its API-shaped row image. `null` when no
+ * file carries a match.
  *
  * This is the read used to build a change record after a PATCH (post-state) or
- * before a DELETE (pre-state); it shares `findRowByPk`'s first-match semantics
- * so the audited row is the same row the mutation targeted.
+ * before a DELETE (pre-state); it shares `findRowByPk`'s version-selection
+ * semantics so the audited row is the same row the mutation targeted.
  */
 export function findRowLineByPk(
   nsDir: string,
@@ -1228,14 +1260,19 @@ export function findRowLineByPk(
   pkValue: string,
 ): RowLineLocation | null {
   const cmp = pkCompareValue(pkCol, pkValue);
-  for (const file of resolveTableFiles(nsDir, declaration)) {
+  const newestFirst = foldsCurrentPartitions(declaration);
+  const files = resolveTableFiles(nsDir, declaration);
+  if (newestFirst) files.reverse();
+  for (const file of files) {
     let content: string;
     try {
       content = fs.readFileSync(file.absPath, "utf-8");
     } catch {
       continue;
     }
-    for (const line of content.split("\n")) {
+    const lines = content.split("\n");
+    if (newestFirst) lines.reverse();
+    for (const line of lines) {
       if (!line.trim()) continue;
       let parsed: unknown;
       try {

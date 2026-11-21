@@ -415,9 +415,18 @@ describe("DB-GAP-067: current.jsonl plus numbered table partitions", () => {
     const seedRows = Array.from({ length: 1000 }, (_, index) =>
       JSON.stringify({ id: `seed-${index}`, name: `Seed ${index}`, tier: null }),
     );
+    // The same PK has an older materialized version AND two append versions.
+    // The served view is one newest row per PK, not a raw union of every
+    // daily reconciliation image.
+    seedRows[0] = JSON.stringify({
+      id: "partition-only",
+      name: "Stale current",
+      tier: "stale",
+    });
     fs.writeFileSync(current, seedRows.join("\n") + "\n");
     writeFile("tables/customers/0001.jsonl", [
-      JSON.stringify({ id: "partition-only", name: "Historical", tier: null }),
+      JSON.stringify({ id: "partition-only", name: "Middle", tier: "middle" }),
+      JSON.stringify({ id: "partition-only", name: "Newest", tier: "new" }),
     ]);
 
     const app = createApp();
@@ -443,18 +452,29 @@ describe("DB-GAP-067: current.jsonl plus numbered table partitions", () => {
       `${base}/customers?count=exact&limit=1`,
     );
     expect(listed.status).toBe(200);
-    expect(listed.headers["x-total-count"]).toBe("1002");
+    expect(listed.headers["x-total-count"]).toBe("1001");
 
-    for (const id of ["partition-only", "fresh-partition-row"]) {
-      const read = await httpRequest(
-        app,
-        "GET",
-        `${base}/customers?id=eq.${id}`,
-      );
-      expect(read.status).toBe(200);
-      expect(read.body).toHaveLength(1);
-      expect(read.body[0].id).toBe(id);
-    }
+    const historical = await httpRequest(
+      app,
+      "GET",
+      `${base}/customers?id=eq.partition-only&count=exact`,
+    );
+    expect(historical.status).toBe(200);
+    expect(historical.body).toEqual([
+      { id: "partition-only", name: "Newest", tier: "new" },
+    ]);
+    expect(historical.headers["x-total-count"]).toBe("1");
+
+    const fresh = await httpRequest(
+      app,
+      "GET",
+      `${base}/customers?id=eq.fresh-partition-row&count=exact`,
+    );
+    expect(fresh.status).toBe(200);
+    expect(fresh.body).toEqual([
+      { id: "fresh-partition-row", name: "Fresh", tier: null },
+    ]);
+    expect(fresh.headers["x-total-count"]).toBe("1");
 
     // The sync PATCHes before it POSTs. Partition visibility must therefore
     // cover the mutation lookup too, not only SELECT, or it would append a
@@ -466,7 +486,7 @@ describe("DB-GAP-067: current.jsonl plus numbered table partitions", () => {
       { body: { name: "Updated in partition" } },
     );
     expect(patched.status).toBe(200);
-    expect(patched.body).toEqual({ updated: 1 });
+    expect(patched.body).toEqual({ updated: 3 });
     const updated = await httpRequest(
       app,
       "GET",
@@ -474,6 +494,7 @@ describe("DB-GAP-067: current.jsonl plus numbered table partitions", () => {
     );
     expect(updated.body).toHaveLength(1);
     expect(updated.body[0].name).toBe("Updated in partition");
+    expect(updated.body[0].tier).toBe("new");
 
     const duplicate = await httpRequest(app, "POST", `${base}/customers`, {
       body: { id: "fresh-partition-row", name: "Duplicate", tier: null },
