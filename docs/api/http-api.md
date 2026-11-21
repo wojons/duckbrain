@@ -285,35 +285,7 @@ parameters.
 
 `POST /cli`
 
-Execute DuckBrain CLI commands remotely via the HTTP server. Supports the `--socket` CLI flag for tunnel-based remote execution.
-
-**Request:**
-
-```json
-{
-  "command": "status",
-  "args": ["--namespace=default"]
-}
-```
-
-**Response:**
-
-```json
-{
-  "output": "...",
-  "error": "...",
-  "exitCode": 0
-}
-```
-
-**Example:**
-
-```bash
-curl -X POST http://localhost:3000/cli \
-  -H "Content-Type: application/json" \
-  -d '{"command":"status","args":["--namespace=default"]}'
-```
-
+Remote CLI execution is disabled because command arguments cannot safely enforce HTTP namespace and role grants. Authenticated requests are denied with HTTP 403; use the scoped REST API instead. Local CLI commands are unaffected. Requests reaching the endpoint are recorded in `<namespaces-root>/.duckbrain-audit/cli.jsonl` with the principal, command, SHA-256 of JSON-encoded args, and outcome. If the audit append fails, the request is denied with HTTP 503.
 ---
 
 ## REST API Routes

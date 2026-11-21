@@ -29,7 +29,7 @@ test also fails when the committed block is stale.
      Do not edit by hand: `pnpm docs:surface` rewrites this block, and
      src/surface/parity.test.ts fails when it is stale. -->
 
-**67 capabilities** cover 55 HTTP routes, 24 MCP tools and 30 CLI verbs. `pending` means the surface does not implement it yet; `n/a` carries the reason it never will.
+**66 capabilities** cover 54 HTTP routes, 24 MCP tools and 30 CLI verbs. `pending` means the surface does not implement it yet; `n/a` carries the reason it never will.
 
 ### Memory records
 
@@ -120,7 +120,6 @@ test also fails when the committed block is stale.
 | `server.http_start` — Start the HTTP transport | `http` | n/a — bootstrap op: the HTTP transport cannot be started from inside the running HTTP transport | `server_http_start` |
 | `server.stdio` — Start the stdio transport for a local MCP client | `stdio` | n/a — local process seam: a stdio server is owned by the client that spawns it | n/a — a stdio server cannot start itself as a tool |
 | `server.service` — Install/manage the systemd unit | `service` | n/a — host-level operation: systemd unit management needs the host's init, not an API call | n/a — host-level operation: not exposed to agents by design |
-| `server.remote_cli` — Execute a CLI command on a remote daemon over its socket | n/a — the CLI is the client of this endpoint, not one of its verbs | `POST /cli` | **pending** |
 
 ### MCP transport
 
@@ -225,7 +224,6 @@ test also fails when the committed block is stale.
 - `ops.ui` — missing cli, mcp
 - `metrics.recall` — missing http, mcp
 - `server.status` — missing http
-- `server.remote_cli` — missing mcp
 - `config` — missing http, mcp
 - `auth.token` — missing http, mcp
 - `git.identity` — missing http, mcp

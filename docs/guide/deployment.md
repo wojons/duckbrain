@@ -409,13 +409,7 @@ node bin/duckbrain.js ssh-connect --close --name=prod
 
 ### Remote CLI Execution
 
-Once a tunnel is active, the CLI can execute commands by sending JSON-RPC to the local socket:
-
-```bash
-# This sends a POST /cli request to the local socket
-node bin/duckbrain.js --socket=prod status
-```
-
+Remote CLI execution over the socket is currently disabled. The `/cli` endpoint denies requests; use the scoped HTTP API instead.
 ---
 
 ## Reverse Proxy Setup

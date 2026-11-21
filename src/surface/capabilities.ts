@@ -414,14 +414,6 @@ export const CAPABILITIES: readonly Capability[] = [
     },
   },
   {
-    id: "server.remote_cli",
-    summary: "Execute a CLI command on a remote daemon over its socket",
-    http: ["POST /cli"],
-    na: {
-      cli: "the CLI is the client of this endpoint, not one of its verbs",
-    },
-  },
-  {
     id: "mcp.transport",
     summary: "MCP Streamable-HTTP transport endpoint",
     http: ["POST /mcp", "GET /mcp"],

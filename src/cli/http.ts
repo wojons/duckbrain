@@ -82,6 +82,7 @@ import { createReadLedgerMiddleware } from "../http/middleware/readLedger.js";
 import path from "path";
 import fs from "fs";
 import os from "os";
+import { createHash } from "crypto";
 import { httpPidFilePath, cleanupStalePidFile } from "../utils/pidfile.js";
 import {
   drainDurableWrites,
@@ -988,10 +989,8 @@ export function createHttpServer(options: HttpServerOptions = {}): Express {
 
   // Error handling (must be after all routes)
 
-  // CLI remote execution endpoint (for --socket usage)
-  // Whitelist: only safe/non-destructive CLI commands allowed via remote socket.
-  // Blocked: stdio (launches MCP server), http (launches HTTP server),
-  //          service (systemd management — stop/restart could take down the daemon).
+  // Retain validation for compatibility, but never dispatch a child process:
+  // arbitrary CLI flags cannot be safely constrained to a principal's grants.
   const CLI_COMMAND_WHITELIST = new Set([
     "remember",
     "recall",
@@ -1086,8 +1085,29 @@ export function createHttpServer(options: HttpServerOptions = {}): Express {
   }
 
   app.post("/cli", async (req: Request, res: Response) => {
+    const principal = getPrincipal(req);
+    const body = req.body && typeof req.body === "object" ? req.body : {};
+    const argsHash = createHash("sha256")
+      .update(JSON.stringify(body.args ?? null))
+      .digest("hex");
     try {
-      const { command, args: cmdArgs } = req.body;
+      const dir = path.join(namespacesPath, ".duckbrain-audit");
+      fs.mkdirSync(dir, { recursive: true });
+      fs.appendFileSync(path.join(dir, "cli.jsonl"), JSON.stringify({
+        ts: new Date().toISOString(), principal: principal?.name ?? null,
+        command: typeof body.command === "string" ? body.command : null,
+        argsHash, outcome: "denied",
+      }) + "\n", { encoding: "utf8", mode: 0o600 });
+    } catch {
+      res.status(503).json({ error: "CLI execution disabled; audit unavailable" });
+      return;
+    }
+    // No child process is ever spawned: remote CLI execution is disabled because
+    // arbitrary CLI flags cannot be constrained to a principal's namespace/role
+    // grants. Validation is retained so malformed requests still answer 400, but
+    // every well-formed request — authenticated or not — is denied below.
+    try {
+      const { command, args: cmdArgs } = body;
 
       // Input validation: command must be a non-empty string
       if (!command || typeof command !== "string") {
@@ -1108,30 +1128,8 @@ export function createHttpServer(options: HttpServerOptions = {}): Express {
         return;
       }
 
-      const { execFile } = await import("child_process");
-      const binPath = path.resolve(process.cwd(), "bin/duckbrain.ts");
-      const fullArgs = [binPath, command, ...(cmdArgs || [])];
-
-      execFile(
-        "npx",
-        ["tsx", ...fullArgs],
-        {
-          timeout: 30000,
-          maxBuffer: 1024 * 1024,
-          cwd: process.cwd(),
-          env: { ...process.env, FORCE_COLOR: "0", NO_COLOR: "1" },
-        },
-        (err: any, stdout: string, stderr: string) => {
-          if (err) {
-            const output = [stderr, stdout].filter(Boolean).join("\n").trim();
-            res.json({ error: output || err.message, exitCode: err.code || 1 });
-            return;
-          }
-          const output = stdout.trim();
-          const errOutput = stderr.trim();
-          res.json({ output, error: errOutput || undefined, exitCode: 0 });
-        },
-      );
+      res.status(403).json({ error: "Remote CLI execution is disabled" });
+      return;
     } catch (error) {
       res.status(500).json({
         error: error instanceof Error ? error.message : "Internal error",

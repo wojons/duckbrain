@@ -109,7 +109,8 @@ export function compareSurface(
       }
     }
     for (const key of inCode) {
-      if (!declared.has(key)) {
+      // /cli is retained only as an audited denial, not an execution capability.
+      if (!declared.has(key) && !(surface === "http" && key === "POST /cli")) {
         issues.push({
           kind: "undeclared",
           surface,

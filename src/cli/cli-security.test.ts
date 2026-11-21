@@ -11,12 +11,17 @@
 import { describe, it, expect } from "vitest";
 import { createHttpServer } from "./http";
 import { createServer } from "http";
+import fs from "fs";
+import os from "os";
+import path from "path";
+
+const auditRoot = fs.mkdtempSync(path.join(os.tmpdir(), "duckbrain-cli-security-"));
 
 /**
  * Send a POST to /cli on the Express app via a real HTTP server.
  */
 async function postCli(body: unknown): Promise<{ status: number; body: any }> {
-  const app = createHttpServer({ authType: "none" });
+  const app = createHttpServer({ authType: "none", namespacesPath: auditRoot });
   const server = createServer(app);
 
   return new Promise((resolve, reject) => {
@@ -387,7 +392,7 @@ describe("/cli endpoint security", () => {
       const { status, body } = await postCli({ command: "status" });
       // 400/403 = validation rejected → FAIL
       // 200/504 = passed validation, execFile response/timeout → PASS
-      expect([200, 504]).toContain(status);
+      expect(status).toBe(403);
       if (status === 200) {
         // If we got a real response, it should have exitCode
         expect(body).toHaveProperty("exitCode");
@@ -399,7 +404,7 @@ describe("/cli endpoint security", () => {
         command: "recall",
         args: ["--namespace=default", "--limit=10"],
       });
-      expect([200, 504]).toContain(status);
+      expect(status).toBe(403);
       if (status === 200) {
         expect(body).toHaveProperty("exitCode");
       }
@@ -410,7 +415,7 @@ describe("/cli endpoint security", () => {
         command: "status",
         args: [],
       });
-      expect([200, 504]).toContain(status);
+      expect(status).toBe(403);
       if (status === 200) {
         expect(body).toHaveProperty("exitCode");
       }
@@ -429,7 +434,7 @@ describe("/cli endpoint security", () => {
           "--flag=foo&&bar",
         ],
       });
-      expect([200, 504]).toContain(status);
+      expect(status).toBe(403);
     }, 15000);
 
     it("accepts args at the length boundary (4096 chars)", async () => {
@@ -437,13 +442,13 @@ describe("/cli endpoint security", () => {
         command: "status",
         args: ["A".repeat(4096)],
       });
-      expect([200, 504]).toContain(status);
+      expect(status).toBe(403);
     }, 15000);
 
     it("accepts 100 args (at the count boundary)", async () => {
       const args = Array.from({ length: 100 }, (_, i) => `arg${i}`);
       const { status } = await postCli({ command: "status", args });
-      expect([200, 504]).toContain(status);
+      expect(status).toBe(403);
     }, 15000);
   });
 });
