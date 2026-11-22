@@ -42,6 +42,31 @@ interface ScanCacheEntry {
   files: MalformedFile[];
 }
 
+/**
+ * PERF-DUCKBRAIN-003: the CURRENT per-file stat a scan pass observed.
+ *
+ * The serving read path needs one thing from the audit beyond the corruption
+ * report: the exact (size, mtimeMs) every chunk had DURING this request —
+ * the same signal the (size, mtimeMs) invalidation below uses to detect an
+ * appended chunk. Consumers must treat these as the freshness oracle of THIS
+ * pass, never as a reusable cache key computed anywhere else.
+ */
+export interface ChunkFileStat {
+  path: string;
+  /** stat size in bytes; 0 when the file is absent. */
+  size: number;
+  /** stat mtimeMs; 0 when the file is absent. */
+  mtimeMs: number;
+  /** false when statSync failed (chunk deleted between listing and scan). */
+  present: boolean;
+}
+
+/** Report plus the per-file stats observed while producing it. */
+export interface DetailedScanResult {
+  report: CorruptionReport;
+  fileStats: ChunkFileStat[];
+}
+
 /** Cache keyed by absolute path; invalidated by (size, mtimeMs). */
 const scanCache = new Map<string, ScanCacheEntry>();
 /**
@@ -62,17 +87,40 @@ const warned = new Set<string>();
  * (path, size, mtimeMs) so a hot read does not re-parse unchanged chunks.
  */
 export function scanMalformedLines(files: string[]): CorruptionReport {
+  return scanMalformedLinesDetailed(files).report;
+}
+
+/**
+ * PERF-DUCKBRAIN-003: scanMalformedLines plus the per-file stats observed.
+ *
+ * IDENTICAL scan and cache behavior (same statSync → (size, mtimeMs) cache
+ * check → read → parse chain, byte-for-byte); the only addition is that the
+ * stat every scanFile already took is REPORTED instead of discarded, so the
+ * serving read path can key a content-derived total cache on the same
+ * freshness signal the corruption verdict uses. No caching decision in this
+ * module changes.
+ */
+export function scanMalformedLinesDetailed(files: string[]): DetailedScanResult {
   const found: MalformedFile[] = [];
+  const fileStats: ChunkFileStat[] = [];
   for (const file of files) {
-    found.push(...scanFile(file));
+    const scanned = scanFileWithStat(file);
+    found.push(...scanned.files);
+    fileStats.push(scanned.stat);
   }
   return {
-    skipped: found.reduce((total, entry) => total + entry.skipped, 0),
-    files: found,
+    report: {
+      skipped: found.reduce((total, entry) => total + entry.skipped, 0),
+      files: found,
+    },
+    fileStats,
   };
 }
 
-function scanFile(filePath: string): MalformedFile[] {
+function scanFileWithStat(filePath: string): {
+  files: MalformedFile[];
+  stat: ChunkFileStat;
+} {
   const abs = path.resolve(filePath);
 
   let stat: fs.Stats;
@@ -80,19 +128,25 @@ function scanFile(filePath: string): MalformedFile[] {
     stat = fs.statSync(abs);
   } catch {
     // A missing chunk is not corruption — it is simply absent.
-    return [];
+    return { files: [], stat: { path: abs, size: 0, mtimeMs: 0, present: false } };
   }
 
   const cached = scanCache.get(abs);
   if (cached && cached.size === stat.size && cached.mtimeMs === stat.mtimeMs) {
-    return cached.files;
+    return {
+      files: cached.files,
+      stat: { path: abs, size: stat.size, mtimeMs: stat.mtimeMs, present: true },
+    };
   }
 
   let content: string;
   try {
     content = fs.readFileSync(abs, "utf-8");
   } catch {
-    return [];
+    return {
+      files: [],
+      stat: { path: abs, size: stat.size, mtimeMs: stat.mtimeMs, present: true },
+    };
   }
 
   const lines = content.split("\n");
@@ -122,7 +176,10 @@ function scanFile(filePath: string): MalformedFile[] {
     if (oldest !== undefined) scanCache.delete(oldest);
   }
   scanCache.set(abs, { size: stat.size, mtimeMs: stat.mtimeMs, files });
-  return files;
+  return {
+    files,
+    stat: { path: abs, size: stat.size, mtimeMs: stat.mtimeMs, present: true },
+  };
 }
 
 /**

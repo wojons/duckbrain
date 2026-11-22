@@ -12,12 +12,14 @@ import { resolveNamespacesPath } from "../config";
 import { getNamespaceWriter } from "../serialization/namespaceWriter";
 import path from "path";
 import fs from "fs";
+import { createHash } from "crypto";
 import { deepConvertBigInts } from "../utils/serialize";
 import { compareChunkNames } from "../storage/jsonl";
 import {
-  scanMalformedLines,
+  scanMalformedLinesDetailed,
   warnOnCorruption,
   type CorruptionReport,
+  type ChunkFileStat,
 } from "../storage/corruption";
 
 /**
@@ -151,6 +153,71 @@ export interface MemoryQueryFilters {
 }
 
 /**
+ * PERF-DUCKBRAIN-003: per-partition directory-listing cache.
+ *
+ * The bounded plain-list path enumerates every partition on EVERY request.
+ * The entry SET of a partition directory changes only when a chunk is
+ * created, deleted, or renamed — all of which bump the DIRECTORY mtime —
+ * while an append to an existing chunk does NOT change it (and must not
+ * invalidate anything here: the listing is names only, never a content
+ * verdict). So the listing is cached keyed by the directory mtime taken
+ * BEFORE the readdir: any later entry change produces a strictly newer
+ * directory mtime than the cached one, forcing a refresh, and an append
+ * reuses the cached names.
+ *
+ * The per-file stats stored on a refresh are informational (AC3's "listing +
+ * its per-file stats" composition); NO content verdict is ever derived from
+ * them, because an append changes neither the directory mtime nor the name —
+ * content freshness remains the exclusive job of corruption.ts's per-file
+ * (size, mtimeMs) invalidation.
+ */
+interface ListingCacheEntry {
+  /** Directory mtime captured BEFORE the readdir (see soundness note above). */
+  dirMtimeMs: number;
+  /** Chunk file names, in the partition's segment order. */
+  names: string[];
+  /** Per-file stats captured during the refresh that built this entry. */
+  fileStats: ChunkFileStat[];
+}
+
+const listingCache = new Map<string, ListingCacheEntry>();
+
+/** Bound the listing cache: a daemon serving many namespaces stays bounded. */
+const MAX_LISTING_CACHE_ENTRIES = 8192;
+
+/**
+ * PERF-DUCKBRAIN-003 test seam: what the read path's OWN enumeration layer
+ * did since the last reset. The corruption audit's per-file statSync pass is
+ * deliberately NOT counted here — it is corruption.ts's mandated freshness
+ * check and stays byte-identical (see the AC(3) disclosure).
+ */
+const listingCacheMetrics = {
+  dirStats: 0,
+  readdirs: 0,
+  chunkStats: 0,
+  hits: 0,
+  misses: 0,
+};
+
+/** Reset + read the enumeration-layer counters (test seam, like resetCorruptionCache). */
+export function __jsonlListingCacheForTests(action: "reset" | "peek"): {
+  dirStats: number;
+  readdirs: number;
+  chunkStats: number;
+  hits: number;
+  misses: number;
+} {
+  if (action === "reset") {
+    listingCacheMetrics.dirStats = 0;
+    listingCacheMetrics.readdirs = 0;
+    listingCacheMetrics.chunkStats = 0;
+    listingCacheMetrics.hits = 0;
+    listingCacheMetrics.misses = 0;
+  }
+  return { ...listingCacheMetrics };
+}
+
+/**
  * Collect the JSONL file paths for the given partitions
  */
 export function collectJsonlFiles(partitionPaths: string[]): string[] {
@@ -158,14 +225,67 @@ export function collectJsonlFiles(partitionPaths: string[]): string[] {
   for (const partitionPath of partitionPaths) {
     if (!fs.existsSync(partitionPath)) continue;
 
-    const files = fs
+    // PERF-DUCKBRAIN-003: stat the directory FIRST, then readdir — the
+    // cached mtime must predate the listing snapshot so any later entry
+    // create/delete shows up as a strictly newer mtime on the next call.
+    let dirStat: fs.Stats;
+    try {
+      dirStat = fs.statSync(partitionPath);
+      listingCacheMetrics.dirStats += 1;
+    } catch {
+      continue;
+    }
+
+    const cached = listingCache.get(partitionPath);
+    if (cached && cached.dirMtimeMs === dirStat.mtimeMs) {
+      listingCacheMetrics.hits += 1;
+      for (const name of cached.names) {
+        jsonlFiles.push(path.join(partitionPath, name).replace(/\\/g, "/"));
+      }
+      continue;
+    }
+
+    listingCacheMetrics.misses += 1;
+    const names = fs
       .readdirSync(partitionPath)
       .filter((f) => f.endsWith(".jsonl"))
       // Numeric segment order, not readdir order: past segment 9999 the names
       // are not fixed-width, and DuckDB ingests in the order given.
-      .sort(compareChunkNames)
-      .map((f) => path.join(partitionPath, f).replace(/\\/g, "/"));
-    jsonlFiles.push(...files);
+      .sort(compareChunkNames);
+    listingCacheMetrics.readdirs += 1;
+
+    // Informational per-file stats for the refreshed entry (see the cache
+    // doc block: never a content verdict).
+    const fileStats: ChunkFileStat[] = [];
+    for (const name of names) {
+      const full = path.join(partitionPath, name);
+      try {
+        const st = fs.statSync(full);
+        listingCacheMetrics.chunkStats += 1;
+        fileStats.push({
+          path: full,
+          size: st.size,
+          mtimeMs: st.mtimeMs,
+          present: true,
+        });
+      } catch {
+        fileStats.push({ path: full, size: 0, mtimeMs: 0, present: false });
+      }
+    }
+
+    if (listingCache.size >= MAX_LISTING_CACHE_ENTRIES) {
+      const oldest = listingCache.keys().next().value;
+      if (oldest !== undefined) listingCache.delete(oldest);
+    }
+    listingCache.set(partitionPath, {
+      dirMtimeMs: dirStat.mtimeMs,
+      names,
+      fileStats,
+    });
+
+    for (const name of names) {
+      jsonlFiles.push(path.join(partitionPath, name).replace(/\\/g, "/"));
+    }
   }
   return jsonlFiles;
 }
@@ -180,12 +300,19 @@ export function collectJsonlFiles(partitionPaths: string[]): string[] {
  * (`src/storage/corruption.ts`) and emits the same warning the JSONL reader
  * emits, so both readers report one count for one namespace (AC4).
  */
-export function auditServingChunks(jsonlFiles: string[]): CorruptionReport {
-  const report = scanMalformedLines(jsonlFiles);
+export function auditServingChunks(
+  jsonlFiles: string[],
+): CorruptionReport & { fileStats?: ChunkFileStat[] } {
+  // PERF-DUCKBRAIN-003: the same scan (byte-identical behavior), plus the
+  // per-file stats the scan already observed. Consumers may key a
+  // content-derived cache on these — they are the CURRENT (size, mtimeMs)
+  // of every chunk, the same freshness signal corruption.ts invalidates on.
+  const detailed = scanMalformedLinesDetailed(jsonlFiles);
+  const report = detailed.report;
   if (report.skipped > 0) {
     warnOnCorruption(report);
   }
-  return report;
+  return { ...report, fileStats: detailed.fileStats };
 }
 
 /**
@@ -695,6 +822,16 @@ function isPlainList(filters?: MemoryQueryFilters): boolean {
  * tombstone collapse — a page of N live rows can require more than N raw rows. */
 const PLAIN_LIST_DEDUP_SLACK = 50;
 
+/**
+ * PERF-DUCKBRAIN-003: segments per partition the first bounded read covers.
+ * Writes always resolve to the partition's newest segment, so the newest
+ * rows overwhelmingly live in the newest few segments; the slice doubles on
+ * under-fill or unprovable pages and the FULL list is used whenever the
+ * widened slice cannot prove it fills the page (AC2's own fallback).
+ * 8 keeps a 500-segment fixture partition under the 50-path AC(3) bound.
+ */
+const PLAIN_LIST_SLICE_START = 8;
+
 /** PERF-DUCKBRAIN-001: hard cap on raw rows scanned for one page before the
  * bounded read gives up and falls back to the fused statement. */
 const PLAIN_LIST_MAX_WINDOW = 100_000;
@@ -711,6 +848,12 @@ interface RawJsonRow {
   action: string;
   embedding_text: string;
   attributes: string;
+  /**
+   * PERF-DUCKBRAIN-003: `epoch_ms(try_cast(timestamp AS TIMESTAMP))` of the
+   * row, computed BY DuckDB (no JS date-parsing ambiguity). Present only on
+   * bounded-read rows; NULL for rows whose timestamp cannot be cast.
+   */
+  __ts_ms?: number | null;
 }
 
 /**
@@ -811,6 +954,93 @@ async function countLiveDeduped(
 }
 
 /**
+ * PERF-DUCKBRAIN-003: countLiveDeduped plus the NEXT instant this count's
+ * result could change under the current-view validity filter — in the SAME
+ * read_json scan.
+ *
+ * The recall surface sets `now` on every list request (RETR-011), so a
+ * content-derived total cache keyed on the whole WHERE clause changes key on
+ * every request and the cached total never serves (this was measured live on
+ * the staged 20k-chunk corpus: every warm request re-ran the full-corpus
+ * count, erasing PERF-003's warm win on the serving path). The fix keeps the
+ * key on the now-INDEPENDENT query semantics and anchors validity through
+ * this boundary: the count under the current view can only change when
+ * `now` crosses some row's valid_from (a row becomes valid) or valid_until
+ * (a row expires). So while
+ *
+ *   computedAtMs <= now < nextEdgeMs
+ *
+ * the cached count is EXACT regardless of how now moves sub-second inside
+ * that interval.
+ *
+ * THE ROW SETS ARE DELIBERATELY SPLIT: the edge scan reads the row set the
+ * now-INDEPENDENT (base) conditions select — the validity view can HIDE a
+ * row whose valid_from is still in the future, and that hidden row's
+ * upcoming edge is precisely the boundary the cache must wait for (an
+ * edges scan over the validity-filtered rows would never see it and the
+ * stale count would serve forever past a real recompute point). The count
+ * itself applies the validity clause BEFORE the dedup window, exactly the
+ * way countLiveDeduped applies the full clause — same rows in, same count
+ * out. Boundaries come from RAW rows (pre-dedup), which is conservative:
+ * an edge on a non-surviving duplicate row only forces a harmless early
+ * recompute, never a wrong total. next_edge NULL (no boundary ahead) means
+ * nothing the base row set holds can flip the view for any future now —
+ * Infinity, cached for the corpus lifetime.
+ *
+ * Edge windows match the validity clause exactly:
+ *   - valid_from STRICTLY ahead of now (a row whose valid_from == now is
+ *     already counted at now; no flip AT now), and
+ *   - valid_until >= now (valid_until == now is the LAST counted instant,
+ *     so the earliest flip after computedAt can be AT computedAt itself).
+ */
+async function countLiveDedupedWithNextValidity(
+  db: Database,
+  fileList: string,
+  baseWhereClause: string,
+  validityClause: string,
+  nowLit: string,
+): Promise<{ total: number; nextEdgeMs: number }> {
+  const nowAnchor = tryCastTimestampLiteral(nowLit);
+  const sql = `
+    WITH raw AS MATERIALIZED (
+      SELECT id, key, domain, author, timestamp, valid_from, valid_until, action, attributes
+      FROM read_json([${fileList}], format='newline_delimited', ignore_errors=true, ${READ_JSON_COLUMNS})
+      ${baseWhereClause}
+    ),
+    live_current AS (
+      SELECT id FROM raw
+      ${validityClause}
+      GROUP BY id
+      HAVING arg_max(action, try_cast(timestamp AS TIMESTAMP)) != 'tombstone'
+    ),
+    edges AS (
+      SELECT min(edge) AS next_edge FROM (
+        SELECT try_cast(valid_from AS TIMESTAMP) AS edge FROM raw
+        WHERE valid_from IS NOT NULL
+              AND try_cast(valid_from AS TIMESTAMP) > ${nowAnchor}
+        UNION ALL
+        SELECT try_cast(valid_until AS TIMESTAMP) AS edge FROM raw
+        WHERE valid_until IS NOT NULL
+              AND try_cast(valid_until AS TIMESTAMP) >= ${nowAnchor}
+      ) upcoming
+    )
+    SELECT (SELECT COUNT(*) FROM live_current) AS total,
+           epoch_ms((SELECT next_edge FROM edges)) AS next_edge
+  `;
+  const result = await runRawQuery(db, sql);
+  const total = Number(result?.[0]?.total ?? 0);
+  const nextEdgeRaw = result?.[0]?.next_edge;
+  const nextEdgeMs =
+    nextEdgeRaw == null ? Number.POSITIVE_INFINITY : Number(deepConvertBigInts(nextEdgeRaw));
+  return { total, nextEdgeMs };
+}
+
+/** Cast an ISO instant string as a TIMESTAMP literal (injection-escaped). */
+function tryCastTimestampLiteral(isoInstant: string): string {
+  return `try_cast('${escapeSqlLiteral(isoInstant)}' AS TIMESTAMP)`;
+}
+
+/**
  * PERF-DUCKBRAIN-001: one read_json scan yielding BOTH the bounded page and
  * the exact total, without the whole-corpus window sort.
  *
@@ -835,7 +1065,8 @@ async function runBoundedRead(
 ): Promise<BoundedReadResult> {
   const sql = `
     WITH src AS MATERIALIZED (
-      SELECT id, key, domain, timestamp, valid_from, valid_until, author, action, embedding_text, attributes
+      SELECT id, key, domain, timestamp, valid_from, valid_until, author, action, embedding_text, attributes,
+             epoch_ms(try_cast(timestamp AS TIMESTAMP)) AS __ts_ms
       FROM read_json([${fileList}], format='newline_delimited', ignore_errors=true, ${READ_JSON_COLUMNS})
       ${innerWhereClause}
     ),
@@ -847,11 +1078,11 @@ async function runBoundedRead(
     page AS (
       SELECT * FROM src ORDER BY try_cast(timestamp AS TIMESTAMP) DESC NULLS LAST, id ASC LIMIT ${window}
     )
-    SELECT kind, id, key, domain, timestamp, valid_from, valid_until, author, action, embedding_text, attributes, __total
+    SELECT kind, id, key, domain, timestamp, valid_from, valid_until, author, action, embedding_text, attributes, __ts_ms, __total
     FROM (
       SELECT 'row' AS kind, p.*, 0 AS __total FROM page p
       UNION ALL
-      SELECT 'total' AS kind, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, t.__total FROM total t
+      SELECT 'total' AS kind, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, t.__total FROM total t
     ) fused
     ORDER BY kind DESC, try_cast(timestamp AS TIMESTAMP) DESC NULLS LAST, id ASC
   `;
@@ -870,6 +1101,225 @@ async function runBoundedRead(
 }
 
 /**
+ * PERF-DUCKBRAIN-003: exact live count over the FULL chunk list, cached
+ * under (corpus freshness, now-independent query semantics, validity
+ * lifetime).
+ *
+ * The slice read can never produce the namespace-global total by itself —
+ * ids living in excluded segments are invisible to it — so when a proved
+ * slice serves the PAGE, the total still comes from a full-corpus
+ * countLiveDeduped scan. To keep that exactness affordable, the result is
+ * cached under a digest of the CURRENT per-file stats the corruption audit
+ * just observed (path + size + mtimeMs of every chunk) plus the query's
+ * now-INDEPENDENT semantics, with the validity view handled by its own
+ * exactness anchor: any append/delete/create changes some chunk's
+ * (size, mtimeMs) or the file set, which changes the digest and forces a
+ * recompute. This is the same freshness signal corruption.ts itself caches
+ * content verdicts under — a directory-mtime key is explicitly NOT used
+ * (an append does not change the directory mtime).
+ *
+ * WHY THE KEY CANNOT DIGEST THE WHOLE WHERE CLAUSE: the recall surface sets
+ * `now` on every request (RETR-011), and the validity clause embeds it — a
+ * whole-clause digest changes key on every request and the cache never
+ * serves (measured live: every warm list request re-ran the full-corpus
+ * count, erasing PERF-003's warm win on the real serving path). The key
+ * therefore digests the BASE conditions (everything but the validity
+ * clause) plus whether a current validity view is active at all, and the
+ * entry records the next instant the view could change the count
+ * (countLiveDedupedWithNextValidity's nextEdge): an entry computed at
+ * now=t is served for requests with now' in [t, nextEdge) and recomputed
+ * at the first now' >= nextEdge (or a clock step backwards — computedAtMs
+ * guards that too). historical=true / now unset are now-independent, so
+ * nextEdge = Infinity, and the count runs through plain countLiveDeduped.
+ *
+ * The count itself always runs under the FULL clause (the request's exact
+ * validity view), never the bucketed/anchored one — no approximation enters
+ * the served numbers, only the cache REUSE window is bounded by the proof.
+ */
+interface TotalCacheEntry {
+  total: number;
+  /** Earliest instant the current validity view could change the count (ms epoch); Infinity when now-independent. */
+  nextEdgeMs: number;
+  /** The now (ms epoch) the count was computed at; 0 when now-independent. */
+  computedAtMs: number;
+}
+const MAX_TOTAL_CACHE_ENTRIES = 128;
+const totalCache = new Map<string, TotalCacheEntry>();
+const totalCacheMetrics = { hits: 0, misses: 0 };
+
+/** PERF-DUCKBRAIN-003 test seam: total-cache accounting since the last reset. */
+export function __totalCacheForTests(action: "reset" | "peek"): {
+  entries: number;
+  misses: number;
+  hits: number;
+} {
+  if (action === "reset") {
+    totalCache.clear();
+    totalCacheMetrics.hits = 0;
+    totalCacheMetrics.misses = 0;
+  }
+  return {
+    entries: totalCache.size,
+    misses: totalCacheMetrics.misses,
+    hits: totalCacheMetrics.hits,
+  };
+}
+
+function totalCacheKey(
+  baseWhereClause: string,
+  hasValidityView: boolean,
+  fileStats: ChunkFileStat[],
+): string {
+  const hash = createHash("sha1");
+  hash.update(baseWhereClause);
+  hash.update("\u0000");
+  hash.update(hasValidityView ? "view:current" : "view:none");
+  hash.update("\u0000");
+  for (const stat of fileStats) {
+    hash.update(
+      `${stat.present ? "1" : "0"}:${stat.size}:${stat.mtimeMs}:${stat.path}\n`,
+    );
+  }
+  return hash.digest("hex");
+}
+
+async function cachedLiveTotal(
+  db: Database,
+  jsonlFiles: string[],
+  baseWhereClause: string,
+  hasValidityView: boolean,
+  validityClause: string,
+  nowLit: string | undefined,
+  fileStats: ChunkFileStat[],
+): Promise<number> {
+  const key = totalCacheKey(baseWhereClause, hasValidityView, fileStats);
+  const cached = totalCache.get(key);
+  const nowMs = hasValidityView && nowLit ? Date.parse(nowLit) : 0;
+  if (cached) {
+    const stillValid =
+      !hasValidityView ||
+      (cached.computedAtMs <= nowMs && nowMs < cached.nextEdgeMs);
+    if (stillValid) {
+      totalCacheMetrics.hits += 1;
+      return cached.total;
+    }
+  }
+  totalCacheMetrics.misses += 1;
+  const fileList = jsonlFiles.map((f) => `'${f}'`).join(", ");
+  let total: number;
+  let nextEdgeMs = Number.POSITIVE_INFINITY;
+  let computedAtMs = 0;
+  if (hasValidityView && nowLit) {
+    const counted = await countLiveDedupedWithNextValidity(
+      db,
+      fileList,
+      baseWhereClause,
+      validityClause,
+      nowLit,
+    );
+    total = counted.total;
+    nextEdgeMs = counted.nextEdgeMs;
+    computedAtMs = nowMs;
+  } else {
+    // No validity view: the count runs under the base clause as-is
+    // (historical=true / now unset are now-independent).
+    total = await countLiveDeduped(db, fileList, baseWhereClause);
+  }
+  if (totalCache.size >= MAX_TOTAL_CACHE_ENTRIES) {
+    const oldest = totalCache.keys().next().value;
+    if (oldest !== undefined) totalCache.delete(oldest);
+  }
+  totalCache.set(key, { total, nextEdgeMs, computedAtMs });
+  return total;
+}
+
+/**
+ * PERF-DUCKBRAIN-003: the newest-segments slice of a partition list.
+ *
+ * `jsonlFiles` arrives in collectJsonlFiles order — partition by partition,
+ * each partition's segments in ascending compareChunkNames order (oldest
+ * first, the partition's active/newest chunk last). Grouping by directory
+ * and taking the LAST `take` entries per partition therefore yields the
+ * newest `take` segments of every partition, in a stable order. When every
+ * partition has at most `take` segments the slice IS the full list.
+ */
+function sliceNewestSegments(
+  jsonlFiles: string[],
+  take: number,
+): { files: string[]; fullCoverage: boolean } {
+  const byPartition = new Map<string, string[]>();
+  for (const file of jsonlFiles) {
+    const dir = path.dirname(file);
+    const list = byPartition.get(dir);
+    if (list) list.push(file);
+    else byPartition.set(dir, [file]);
+  }
+  let fullCoverage = true;
+  const files: string[] = [];
+  for (const list of byPartition.values()) {
+    if (list.length > take) {
+      fullCoverage = false;
+      files.push(...list.slice(list.length - take));
+    } else {
+      files.push(...list);
+    }
+  }
+  return { files, fullCoverage };
+}
+
+/**
+ * PERF-DUCKBRAIN-003: can the slice PROVE it fills the page?
+ *
+ * The page came from a read of the newest segments only. It equals the true
+ * page iff no row in an EXCLUDED chunk ranks above the window's cut row —
+ * the last (lowest-ranked) row the bounded read returned. Chunks freeze
+ * when rotation moves writes to a newer segment (appendToJsonl always
+ * resolves to the partition's NEWEST segment), and compaction rewrites set
+ * a fresh mtime, so every row in an excluded chunk satisfies
+ *
+ *   row.timestamp <= chunk mtimeMs   (record time <= append wall time)
+ *
+ * Combined with the cut row's exact DuckDB-computed epoch (epoch_ms of
+ * try_cast — no JS date parsing), requiring EVERY excluded chunk's CURRENT
+ * mtime to be strictly below the cut proves no excluded row can tie or
+ * outrank the cut: excluded rows have timestamp <= mtime < cut, so they
+ * can neither enter the window, displace a window row via the id
+ * tiebreak, nor carry a newer tombstone for an id already in the page.
+ * NULL-timestamp rows sort NULLS LAST and are covered by the same bound
+ * whenever the cut itself is non-NULL; a NULL cut disproves the bound.
+ *
+ * Excluded chunk mtimes are the CURRENT stats the audit pass just observed
+ * — a chunk appended in place has a fresh mtime and the proof fails (the
+ * caller widens the slice or falls back to the full list), never a stale
+ * directory-level signal.
+ */
+function sliceProofHolds(
+  jsonlFiles: string[],
+  take: number,
+  cutTsMs: number | null | undefined,
+  fileStats: Map<string, ChunkFileStat>,
+): boolean {
+  if (cutTsMs == null) return false;
+  const byPartition = new Map<string, string[]>();
+  for (const file of jsonlFiles) {
+    const dir = path.dirname(file);
+    const list = byPartition.get(dir);
+    if (list) list.push(file);
+    else byPartition.set(dir, [file]);
+  }
+  for (const list of byPartition.values()) {
+    const slicedHere = Math.min(take, list.length);
+    // Everything BEFORE the slice in this partition is excluded.
+    for (let i = 0; i < list.length - slicedHere; i += 1) {
+      const stat = fileStats.get(list[i]);
+      if (!stat || !stat.present) return false;
+      if (stat.mtimeMs >= cutTsMs) return false;
+    }
+  }
+  return true;
+}
+
+/**
  * PERF-DUCKBRAIN-001: bounded top-k + code dedupe for the PLAIN LIST path.
  *
  * The whole-corpus dedup sort (ROW_NUMBER over every row's id) is what made a
@@ -882,6 +1332,17 @@ async function runBoundedRead(
  * window cap, return null so the caller falls back to the fused statement
  * (which is exact by construction).
  *
+ * PERF-DUCKBRAIN-003: the read is additionally bounded by FILES. The read
+ * starts on the newest few segments per partition (the segments writes land
+ * in) and widens — slice first, then the raw-row window — until the page is
+ * filled AND provable (sliceProofHolds) or the full chunk list is being read
+ * (byte-identical to the pre-003 behavior). Whenever a proved partial slice
+ * serves the page, the namespace-global total comes from cachedLiveTotal —
+ * a full-corpus arg_max count cached under the audit's current per-file
+ * stats and the query's now-independent semantics, valid until the next
+ * validity boundary (see cachedLiveTotal) — so page AND total stay
+ * byte-identical to the full-list read.
+ *
  * Returns null when the request is not bounded (no LIMIT) — an unbounded
  * page cannot be sliced by the bounded read, so the caller must use the fused
  * statement.
@@ -890,6 +1351,7 @@ async function queryPlainListBounded(
   db: Database,
   jsonlFiles: string[],
   filters: MemoryQueryFilters,
+  fileStats: ChunkFileStat[],
 ): Promise<QueryMemoriesWithTotalResult | null> {
   const limit = filters.limit;
   if (limit === undefined) {
@@ -902,24 +1364,79 @@ async function queryPlainListBounded(
   const innerConditions = buildWhereConditions(filters);
   const innerWhereClause =
     innerConditions.length > 0 ? `WHERE ${innerConditions.join(" AND ")}` : "";
-  const fileList = jsonlFiles.map((f) => `'${f}'`).join(", ");
+
+  // PERF-DUCKBRAIN-003: split the validity conditions out of the base
+  // conditions. The total cache keys on the NOW-INDEPENDENT query
+  // semantics — the recall surface embeds a fresh `now` (RETR-011) in the
+  // validity clause of every request, so a clause-whole digest changes key
+  // per request and the cached total never serves. The validity VIEW is
+  // carried by the count's exactness anchor (see cachedLiveTotal and
+  // countLiveDedupedWithNextValidity), never by the key: the served count
+  // always comes from the FULL clause, the key only decides reuse.
+  const validityConditions = buildValidityConditions(
+    filters.historical,
+    filters.now,
+  );
+  const hasValidityView = validityConditions.length > 0;
+  const baseConditions = innerConditions.filter(
+    (condition) => !validityConditions.includes(condition),
+  );
+  const baseWhereClause =
+    baseConditions.length > 0 ? `WHERE ${baseConditions.join(" AND ")}` : "";
+  const validityClause =
+    hasValidityView ? `WHERE ${validityConditions.join(" AND ")}` : "";
+
+  // Positional freshness map: scanMalformedLinesDetailed preserves the input
+  // order, so fileStats[i] is the CURRENT stat of jsonlFiles[i]. Keyed by the
+  // exact string the read path uses (no path.resolve re-normalization drift).
+  const statByPath = new Map<string, ChunkFileStat>();
+  for (let i = 0; i < jsonlFiles.length && i < fileStats.length; i += 1) {
+    statByPath.set(jsonlFiles[i], fileStats[i]);
+  }
 
   // limit=0: empty page, but the true total is still reported (GAP-023/024).
   if (limit === 0) {
-    const total = await countLiveDeduped(db, fileList, innerWhereClause);
+    const total = await cachedLiveTotal(
+      db,
+      jsonlFiles,
+      baseWhereClause,
+      hasValidityView,
+      validityClause,
+      filters.now,
+      fileStats,
+    );
     return { memories: [], total };
   }
 
+  const maxSegmentsPerPartition = (() => {
+    const perPartition = new Map<string, number>();
+    for (const file of jsonlFiles) {
+      const dir = path.dirname(file);
+      perPartition.set(dir, (perPartition.get(dir) ?? 0) + 1);
+    }
+    let max = 1;
+    for (const count of perPartition.values()) {
+      if (count > max) max = count;
+    }
+    return max;
+  })();
+
   // Bounded top-k page (fused with the total in one scan) + refill on
-  // under-fill.
+  // under-fill; PERF-DUCKBRAIN-003 adds the newest-segment file bound.
   let window = needed + PLAIN_LIST_DEDUP_SLACK;
+  let take = Math.min(PLAIN_LIST_SLICE_START, maxSegmentsPerPartition);
   for (;;) {
     if (window > PLAIN_LIST_MAX_WINDOW) {
       // Could not satisfy the page within the cap — fall back to the fused
       // statement for exactness.
       return null;
     }
-    const { pageRows, total } = await runBoundedRead(
+    const { files: slicedFiles, fullCoverage } = sliceNewestSegments(
+      jsonlFiles,
+      take,
+    );
+    const fileList = slicedFiles.map((f) => `'${f}'`).join(", ");
+    const { pageRows, total: sliceTotal } = await runBoundedRead(
       db,
       fileList,
       innerWhereClause,
@@ -927,9 +1444,47 @@ async function queryPlainListBounded(
     );
     const exhausted = pageRows.length < window;
     const memories = dedupePage(pageRows, offset, limit);
-    if (memories.length === limit || exhausted) {
-      return { memories, total };
+    if (memories.length === limit) {
+      if (fullCoverage) {
+        // The read covered the whole chunk list — the slice total IS the
+        // exact global total (pre-003 behavior, byte-identical).
+        return { memories, total: sliceTotal };
+      }
+      const cut = pageRows[pageRows.length - 1];
+      const cutTsMs = cut?.__ts_ms == null ? null : Number(cut.__ts_ms);
+      if (sliceProofHolds(jsonlFiles, take, cutTsMs, statByPath)) {
+        // The slice provably fills the page. The total is namespace-global,
+        // which a partial slice cannot count — serve the exact full-corpus
+        // total (cached under the audit's current per-file stats).
+        const total = await cachedLiveTotal(
+          db,
+          jsonlFiles,
+          baseWhereClause,
+          hasValidityView,
+          validityClause,
+          filters.now,
+          fileStats,
+        );
+        return { memories, total };
+      }
+      // Cannot prove — widen the slice (never widen the window here: the
+      // page is already full, coverage is what failed).
+      take = Math.min(take * 2, maxSegmentsPerPartition);
+      continue;
     }
+    if (exhausted) {
+      if (fullCoverage) {
+        // Fewer rows exist than the window asked for — the short page is the
+        // exact answer (pre-003 behavior).
+        return { memories, total: sliceTotal };
+      }
+      // The slice ran out of rows before filling the page — excluded
+      // segments may hold both more rows and newer ones. Widen coverage.
+      take = Math.min(take * 2, maxSegmentsPerPartition);
+      continue;
+    }
+    // Page short with rows still unread: duplicate/tombstone collapse —
+    // the pre-003 refill (grow the raw-row window, same slice).
     window *= 2;
   }
 }
@@ -971,10 +1526,19 @@ export async function queryMemoriesWithTotal(
   }
 
   // QA-DUCKBRAIN-022: the total must not silently omit skipped rows.
-  auditServingChunks(jsonlFiles);
+  // PERF-DUCKBRAIN-003: the audit's per-file stats are also the CURRENT
+  // (size, mtimeMs) of every chunk — the freshness oracle the bounded
+  // plain-list path uses for its slice proof and its cached total.
+  const audit = auditServingChunks(jsonlFiles);
+  const fileStats = audit.fileStats ?? [];
 
   if (isPlainList(filters)) {
-    const bounded = await queryPlainListBounded(db, jsonlFiles, filters ?? {});
+    const bounded = await queryPlainListBounded(
+      db,
+      jsonlFiles,
+      filters ?? {},
+      fileStats,
+    );
     if (bounded !== null) {
       return bounded;
     }
