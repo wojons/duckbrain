@@ -1,0 +1,40 @@
+{
+  "tick": "duckbrain-foreman-2026-11-22-04-52-38",
+  "block": "DB-GAP-067",
+  "path": "serial-verification-only",
+  "slots": 1,
+  "slots_reason": "nproc=16 loadavg=14.95 at tick start -> max(1, min(6, 16-ceil(14.95))) = 1. WAVE_BUDGET=12 is the ceiling; the box binds at 1. Independently the selected block carries exactly ONE ready row (block_drive: pending=1 ready=1 done=39/40), so no wave was composable even at higher slots.",
+  "resume_note": "RESUME FIRST checked: the previous manifest (duckbrain-foreman-2026-11-21-10-03-01) named CLI-GODMODE-001, whose board row was closed complete at 2026-11-21 11:20 (event 8772) and whose commit ba6d9871 is on main. No resumable block remained, so selection fell to the top DRIVE line: DB-GAP-067 (97% done, prio 1).",
+  "premise_check": {
+    "finding": "Row pending but implementation already landed on main in three commits: 989625cb (serve current snapshot with numbered partitions), f67e1653 (fold append versions by primary key), 6bd2754c (preserve newest-image mutation semantics). Row was not re-implemented; this tick is a verification-only closeout.",
+    "proof": "git log main shows all three; src/duckdb/table-store.ts foldsCurrentPartitions + dist/build present; .gitreins/tasks.yaml already carries a DB-GAP-067 task at status in_progress (created 2026-11-21T17:46:14Z) so no second lifecycle was minted."
+  },
+  "workers": [],
+  "dispatch": [],
+  "no_dispatch_reason": "Verification-only row: the fix is committed and the residual acceptance is live behaviour of the cos tables view. Dispatching an implementation worker would be a duplicate writer on table-store.ts. slots=1 (loaded box) plus a single ready row also rules out a wave.",
+  "live_evidence": {
+    "sync_instrument": "python3 ~/.hermes/scripts/cos_state_sync.py -> RC=0, stdout {\"projects\": 604, \"initiatives\": 1012, \"projects_served\": 631, \"projects_missing_from_view\": 0, \"initiatives_served\": 1012, \"initiatives_missing_from_view\": 0}",
+    "served_before_fix_class": "initiatives X-Total-Count 1008 at tick start (partition-only ids absent), 1012 after the sync run, 1012 distinct initiative_id",
+    "named_card": "GET /api/ns/cos/tables/initiatives?initiative_id=eq.t_196c266e -> 200 with the h3 Observability card (the 11-19 card the defect never served)",
+    "fresh_row_served": "a partially-completed sync run inserted 1 new initiative and the served count moved 1008 -> 1009 with no restart: a POSTed row is served within one fold cycle",
+    "snapshot_law": "31 further model-chains cards were created DURING the 13-minute sync; they are outside its iteration snapshot and will be absorbed by the next cycle. missing_from_view is asserted against the run's own iterated count, not against a live-moving board.",
+    "latency": "count=exact 7.58s, list limit=10 0.53s, PK filter 0.48s against the live daemon"
+  },
+  "gates": {
+    "typecheck": "npx tsc -p tsconfig.json --noEmit -> clean (exit 0)",
+    "focused_tests": "npx vitest run src/http/routes/tables-rest-atomicity.test.ts -> 14 passed (1 file)",
+    "full_suite_at_fix_commit": "2522 tests / 301 files passed per 6bd2754c commit message (worker-run, not re-run this tick)"
+  },
+  "deployment_note": "The live :3000 daemon (pid 560464, started 2026-11-21 13:45:45, user unit duckbrain-http.service) predates the working-tree edit of table-store.ts (14:00) and its commit 6bd2754c (14:31). The read-path fold is demonstrably live in the running process; the third commit's mutation refinements need a restart, which is approval-gated (row OBSDB-007 owns that gate). No restart was attempted.",
+  "rows": [
+    {
+      "id": "DB-GAP-067",
+      "status": "verification-only-close",
+      "implementation_commits": ["989625cb", "f67e1653", "6bd2754c"],
+      "worktree": null,
+      "branch": null,
+      "worker": null,
+      "gitreins_task": "DB-GAP-067 (created+started 2026-11-21T17:46Z by the previous tick; completed this tick)"
+    }
+  ]
+}
