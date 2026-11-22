@@ -3613,3 +3613,15 @@ tasks:
   status: complete
   created_at: '2026-11-22T19:38:16.343474+00:00'
   completed_at: '2026-11-22T20:14:44.181536+00:00'
+- id: PERF-DUCKBRAIN-003
+  title: 'bounded newest-segment read for the plain list: stop passing all 20k/28k
+    chunk paths to read_json per limit=10 request'
+  criteria:
+  - slice each partition to newest segments for the bounded plain-list path, widen
+    while the page under-fills, full-list fallback when the slice cannot prove it
+    fills the page; page and total byte-identical to today; read-path listing/stat
+    cache keyed by directory mtime that never weakens per-file (size,mtimeMs) corruption
+    invalidation; warm limit=10 fleet-quality under 900ms; limit=200 first-200 keys
+    identical; suite green; test-counts.json regenerated in the same commit
+  status: in_progress
+  created_at: '2026-11-22T21:03:33.950483+00:00'

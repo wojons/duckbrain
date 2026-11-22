@@ -1,0 +1,24 @@
+{
+  "tick_id": "duckbrain-foreman-2026-11-22-20-59-01",
+  "block": "PERF-DUCKBRAIN (row PERF-DUCKBRAIN-003)",
+  "block_progress": "top DRIVE line: P1, 2/3 done (66%), one ready row; previous tick's block PERF-017 fully closed (12/12) so the board was re-sampled",
+  "wave_budget": 5,
+  "slots_computed": "max(1, min(6, 16 - ceil(19.19))) = 1 (loaded box) -> SERIAL PATH, 1 worker; block holds exactly 1 ready row so no wave was composable either way",
+  "workers": [
+    {
+      "task_id": "PERF-DUCKBRAIN-003",
+      "title": "bounded newest-segment read for the plain list: limit=10 still passes all 20,049/27,908 chunk paths into read_json per request",
+      "worktree": "/home/kara/worktrees/duckbrain-PERF-DUCKBRAIN-003",
+      "branch": "wt/PERF-DUCKBRAIN-003",
+      "base_sha": "173ca8e8",
+      "model": "glm-5.3-flash",
+      "provider": "zai-glm",
+      "brief_file": "/tmp/brief-perfduckbrain003-20261122-2107.md",
+      "gitreins_task": "PERF-DUCKBRAIN-003 (created + started this tick)",
+      "fixture_reuse": "/tmp/perf017/namespaces (2.9G corpus copies from PERF-017 tick)",
+      "dispatched_at": null,
+      "status": "pending-dispatch"
+    }
+  ],
+  "independence_note": "single-row wave; no depends_on edges possible within one row"
+}
