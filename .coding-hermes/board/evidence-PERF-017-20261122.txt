@@ -1,0 +1,31 @@
+# PERF-017 evidence (tick duckbrain-foreman-2026-11-22-19-33-17, graded commit 7397c527)
+# Paired A/B, repo harness, isolated daemons on byte-identical corpus copies (20,053/29,088 files)
+# warm medians recomputed: coding-hermes control 2642.8ms vs fix 1757.4ms (1.504x); fleet-quality control 2748.6ms vs fix 2400.0ms (1.145x)
+
+# perf017 control=28731(HEAD dist) prototype=28732(PERF-017 dist, cap 250_000 + bounded eviction)
+# cycle1 A control B prototype
+cycle=1 arm=control port=28731 rc=1 load_before=23.05 load_after=21.73 | coding-hermes: files=20053 limit=10 cold_ms=2367.2 warm_ms=2547.1,2886.8,2838.0 warm_median_ms=2838.0;fleet-quality: files=29088 limit=10 cold_ms=2861.5 warm_ms=2353.6,2185.8,2608.1 warm_median_ms=2353.6;result=FAIL namespace=coding-hermes sample_ms=2367.2 ceiling_ms=500;
+cycle=1 arm=prototype port=28732 rc=1 load_before=21.73 load_after=21.59 | coding-hermes: files=20053 limit=10 cold_ms=2094.8 warm_ms=1864.2,1843.2,2223.6 warm_median_ms=1864.2;fleet-quality: files=29088 limit=10 cold_ms=2868.0 warm_ms=2592.8,2735.8,2265.5 warm_median_ms=2592.8;result=FAIL namespace=coding-hermes sample_ms=2094.8 ceiling_ms=500;
+# cycle2 B prototype A control
+cycle=2 arm=prototype port=28732 rc=1 load_before=21.59 load_after=21.51 | coding-hermes: files=20053 limit=10 cold_ms=2099.3 warm_ms=1953.5,1927.8,1882.0 warm_median_ms=1927.8;fleet-quality: files=29088 limit=10 cold_ms=2614.2 warm_ms=3214.8,2899.6,3004.3 warm_median_ms=3004.3;result=FAIL namespace=coding-hermes sample_ms=2099.3 ceiling_ms=500;
+cycle=2 arm=control port=28731 rc=1 load_before=21.51 load_after=33.71 | coding-hermes: files=20053 limit=10 cold_ms=3056.0 warm_ms=3158.7,3941.7,3724.3 warm_median_ms=3724.3;fleet-quality: files=29088 limit=10 cold_ms=4154.6 warm_ms=3855.4,3668.5,3330.0 warm_median_ms=3668.5;result=FAIL namespace=coding-hermes sample_ms=3056.0 ceiling_ms=500;
+# cycle3 A control B prototype
+cycle=3 arm=control port=28731 rc=1 load_before=33.71 load_after=30.35 | coding-hermes: files=20053 limit=10 cold_ms=2993.5 warm_ms=2383.1,2306.0,2154.8 warm_median_ms=2306.0;fleet-quality: files=29088 limit=10 cold_ms=3025.5 warm_ms=2614.6,2713.0,2643.8 warm_median_ms=2643.8;result=FAIL namespace=coding-hermes sample_ms=2993.5 ceiling_ms=500;
+cycle=3 arm=prototype port=28732 rc=1 load_before=30.35 load_after=27.22 | coding-hermes: files=20053 limit=10 cold_ms=1589.3 warm_ms=1592.9,1516.5,1583.6 warm_median_ms=1583.6;fleet-quality: files=29088 limit=10 cold_ms=2296.4 warm_ms=2286.2,2118.7,2094.1 warm_median_ms=2118.7;result=FAIL namespace=coding-hermes sample_ms=1589.3 ceiling_ms=500;
+# cycle4 B prototype A control
+cycle=4 arm=prototype port=28732 rc=1 load_before=27.22 load_after=28.38 | coding-hermes: files=20053 limit=10 cold_ms=2294.3 warm_ms=1956.5,1650.6,1624.9 warm_median_ms=1650.6;fleet-quality: files=29088 limit=10 cold_ms=1816.4 warm_ms=2207.2,1982.7,2295.8 warm_median_ms=2207.2;result=FAIL namespace=coding-hermes sample_ms=2294.3 ceiling_ms=500;
+cycle=4 arm=control port=28731 rc=1 load_before=28.38 load_after=25.17 | coding-hermes: files=20053 limit=10 cold_ms=2357.8 warm_ms=2395.0,2447.6,3073.9 warm_median_ms=2447.6;fleet-quality: files=29088 limit=10 cold_ms=2814.2 warm_ms=3067.8,2853.4,2700.7 warm_median_ms=2853.4;result=FAIL namespace=coding-hermes sample_ms=2357.8 ceiling_ms=500;
+# end load=25.17 31.44 30.24 10/4385 3211169
+
+=== keys/totals equality (diff control vs prototype per namespace) ===
+--- coding-hermes:
+1c1
+< == arm=control ns=coding-hermes ==
+---
+> == arm=prototype ns=coding-hermes ==
+--- fleet-quality:
+1c1
+< == arm=control ns=fleet-quality ==
+---
+> == arm=prototype ns=fleet-quality ==
+=== gitreins verdict: .gitreins/history/2026-11-22/e065789c/verdict.json (tier1 PASS, tier2 PASS, graded 7397c527) ===

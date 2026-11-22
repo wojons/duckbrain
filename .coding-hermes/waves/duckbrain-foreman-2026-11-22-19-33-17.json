@@ -1,0 +1,23 @@
+{
+  "tick_id": "duckbrain-foreman-2026-11-22-19-33-17",
+  "block": "PERF-017",
+  "block_progress": "11/12 done (91%), one ready row",
+  "wave_budget": 1,
+  "slots_computed": "max(1, min(6, 16 - ceil(19.48))) = 1 (loaded box) AND WAVE_BUDGET=1 -> serial path, 1 worker",
+  "workers": [
+    {
+      "task_id": "PERF-017",
+      "title": "plain-list recall re-parses every chunk: scan cache cap 8192 < corpus clears mid-pass",
+      "worktree": "/home/kara/worktrees/duckbrain-PERF-017",
+      "branch": "wt/PERF-017",
+      "base_sha": "1c44af7b",
+      "model": "glm-5.3-flash",
+      "provider": "zai-glm",
+      "brief_file": "/tmp/brief-perf017-20261122-1933.md",
+      "gitreins_task": "PERF-017 (created + started this tick)",
+      "dispatched_at": null,
+      "status": "pending-dispatch"
+    }
+  ],
+  "independence_note": "single-row wave; no depends_on edges possible within one row"
+}

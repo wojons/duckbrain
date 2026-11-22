@@ -3591,3 +3591,25 @@ tasks:
   status: complete
   created_at: '2026-11-20T20:42:04.709268+00:00'
   completed_at: '2026-11-21T11:20:31.381275+00:00'
+- id: DB-GAP-067
+  title: 'cos tables view frozen: materialized current.jsonl never absorbs partition-only
+    ids'
+  criteria:
+  - POST a fresh row to a cos table via POST /api/ns/cos/tables/<t>, then GET /api/ns/cos/tables/<t>?count=exact
+    serves it within one fold cycle; python3 ~/.hermes/scripts/cos_state_sync.py exits
+    0 with initiatives_missing_from_view=0; card t_196c266e is served by initiative_id=eq.t_196c266e
+  status: complete
+  created_at: '2026-11-21T17:46:14.597503+00:00'
+  completed_at: '2026-11-22T05:45:45.052839+00:00'
+- id: PERF-017
+  title: 'PERF-017 plain-list recall re-parses every chunk: scan cache cap 8192 <
+    corpus clears mid-pass'
+  criteria:
+  - scan cache in src/storage/corruption.ts survives a full pass over a 20k-chunk
+    corpus (cap above largest served corpus, bounded eviction); per-file (size,mtimeMs)
+    invalidation unchanged; corruption-qa022 9/9 plus repeated-call torn-line fixture
+    skipped 0,0,1,1,2 across 5 calls; paired AC(1)/AC(4) harness numbers on the same
+    corpus; test-counts.json regenerated in the same commit
+  status: complete
+  created_at: '2026-11-22T19:38:16.343474+00:00'
+  completed_at: '2026-11-22T20:14:44.181536+00:00'
