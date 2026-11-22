@@ -44,7 +44,10 @@ evaluator:
   # 4M starved DF-0919-01's tier-2 (the judge's clean-install reproduce needs
   # a wide exploration loop on this repo). 10M = the gitreins default.
   max_input_tokens: "10M"
-  max_output_tokens: "0.05M"
+  # 0.05M starved PERF-DUCKBRAIN-003's tier-2 on 2026-11-22: 54.4k cumulative
+  # output over 77.9 iterations with the single criterion ungraded (0 of 1
+  # graded, partial verdict abfe2210). 0.1M rung = 2x the measured cutoff.
+  max_output_tokens: "0.1M"
   tool_call_weight: 0.1
 
 defaults:
