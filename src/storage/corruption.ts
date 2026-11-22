@@ -44,7 +44,13 @@ interface ScanCacheEntry {
 
 /** Cache keyed by absolute path; invalidated by (size, mtimeMs). */
 const scanCache = new Map<string, ScanCacheEntry>();
-const MAX_CACHE_ENTRIES = 8192;
+/**
+ * PERF-017: must sit ABOVE the largest served corpus (fleet-quality alone
+ * serves ~29k chunk paths per request) or mid-pass eviction drops warm
+ * entries and every list request re-parses every chunk. Worst-case memory
+ * at this cap: ~277 B/entry measured (coding-hermes fixture) → ~66 MB.
+ */
+const MAX_CACHE_ENTRIES = 250_000;
 
 /** Files we already warned about, keyed by path+line+count. */
 const warned = new Set<string>();
@@ -107,7 +113,14 @@ function scanFile(filePath: string): MalformedFile[] {
   const files: MalformedFile[] =
     skipped > 0 ? [{ path: abs, line: firstLine, skipped }] : [];
 
-  if (scanCache.size >= MAX_CACHE_ENTRIES) scanCache.clear();
+  // PERF-017: bounded oldest-entry eviction (Map iterates insertion order).
+  // The old whole-map clear dropped every OTHER namespace's warm entries the
+  // moment one namespace crossed the cap, so a long-lived daemon re-parsed
+  // essentially every chunk on every list request.
+  if (scanCache.size >= MAX_CACHE_ENTRIES) {
+    const oldest = scanCache.keys().next().value;
+    if (oldest !== undefined) scanCache.delete(oldest);
+  }
   scanCache.set(abs, { size: stat.size, mtimeMs: stat.mtimeMs, files });
   return files;
 }
