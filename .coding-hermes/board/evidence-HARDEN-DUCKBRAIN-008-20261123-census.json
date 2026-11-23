@@ -1,0 +1,36 @@
+{
+  "root": "/home/kara/duckbrain-frozen-census-20261123/namespaces",
+  "namespacesScanned": 2,
+  "namespacesSkipped": 0,
+  "commitsScanned": 26896,
+  "namespacesCorrupt": 0,
+  "corruptCommits": 0,
+  "namespacesErrored": 0,
+  "corrupt": [],
+  "namespaces": [
+    {
+      "namespace": "pokemon-global",
+      "head": "dd13239a05d1d6841061e55a4cd1c14a8d59990a",
+      "commits": 3231,
+      "derivedChanges": 3273,
+      "corruptCommits": 0,
+      "classes": {},
+      "samples": [],
+      "samplesTruncated": 0,
+      "status": "clean",
+      "error": null
+    },
+    {
+      "namespace": "scheduler",
+      "head": "b60e99fc1dbfb01e476d0cfe135acf061e1959dc",
+      "commits": 23665,
+      "derivedChanges": 695707,
+      "corruptCommits": 0,
+      "classes": {},
+      "samples": [],
+      "samplesTruncated": 0,
+      "status": "clean",
+      "error": null
+    }
+  ]
+}
