@@ -1,0 +1,44 @@
+=== DB-HTTP-001 post-fix live e2e 2026-11-23T14:30:23Z ===
+worktree: /home/kara/worktrees/duckbrain-DB-HTTP-001 @ 5d3b555663cd2f6c7321ee7c1f1810083cdcb5a6
+scratch:  NSROOT=/tmp/dbhttp001-e2e-ns DATADIR=/tmp/dbhttp001-e2e-data PORT=28781
+
+--- start scratch daemon ---
+daemon pid: 3198212
+
+--- wait for /health ---
+[duckbrain] Cleared stale DuckDB connections
+[auth] WARNING: --auth=none disables authentication — with no auth store this daemon accepts UNAUTHENTICATED reads and writes (an explicit --auth-file/DUCKBRAIN_AUTH_FILE still auto-enables apikey and prints its own banner). Use it only for explicit local/test mode; the default is --auth=apikey.
+(node:3198212) ExperimentalWarning: SQLite is an experimental feature and might change at any time
+(Use `node --trace-warnings ...` to show where the warning was created)
+[duckbrain] HTTP server started at http://127.0.0.1:28781
+Warning: namespace census could not read /tmp/dbhttp001-e2e-ns: ENOENT: no such file or directory, scandir '/tmp/dbhttp001-e2e-ns'
+[duckbrain] Could not write pidfile /tmp/dbhttp001-e2e-data/duckbrain-http-28781.pid: ENOENT: no such file or directory, open '/tmp/dbhttp001-e2e-data/duckbrain-http-28781.pid' — continuing without it (server is already listening)
+[duckbrain] HTTP server ready
+healthy after 2s: {"status":"healthy","uptime":1.088453909,"timestamp":"2026-11-23T14:30:24.715Z","embedding":{"provider":"lmstudio","model":"text-embedding-qwen3-embedding-0.6b","healthy":true,"providers":[{"id":"lmstudio","healthy":true,"note":"ok"},{"id":"ollama","healthy":true,"note":"ok"},{"id":"openai","healthy":false,"note":"missing API key (DUCKBRAIN_EMBEDDING_API_KEY)"}]},"keys_error":null,"durability":{"defaultMode":"buffered","overrides":{}},"deadline_exceeded":[]}
+
+--- POST /api/memories?namespace=wt-dben001-probe ---
+[namespace-autocreate] WARN: namespace 'wt-dben001-probe' did not exist and was auto-created by this write (mkdir -p + git init). If this namespace is unexpected (e.g. a typo in ?namespace=), inspect /tmp/dbhttp001-e2e-ns/wt-dben001-probe. Set namespaces.autoCreate=false / DUCKBRAIN_NAMESPACES_AUTOCREATE=false to reject such writes instead.
+HTTP 201
+response body: {"id":"d6e4db7f-3ac0-4c1f-8427-5f981a0f0ae7","key":"/dbhttp001/probe","domain":"raw_note","content":"POSTFIX-PAYLOAD-dbhttp001","attributes":{},"timestamp":"2026-11-23T14:30:24.760Z","author":"totalwindupflightsystems@gmail.com","isTombstone":false,"action":"add","namespace":"wt-dben001-probe","namespace_autocreated":true}
+record id: d6e4db7f-3ac0-4c1f-8427-5f981a0f0ae7
+
+--- DIRECT FILE READ of the namespace JSONL ---
+jsonl files under /tmp/dbhttp001-e2e-ns:
+/tmp/dbhttp001-e2e-ns/wt-dben001-probe/raw_note/2026-11/current.jsonl
+/tmp/dbhttp001-e2e-ns/wt-dben001-probe/_audit/current.jsonl
+raw matching line(s):
+{"id":"d6e4db7f-3ac0-4c1f-8427-5f981a0f0ae7","key":"/dbhttp001/probe","domain":"raw_note","timestamp":"2026-11-23T14:30:24.760Z","author":"totalwindupflightsystems@gmail.com","action":"add","embedding_text":"POSTFIX-PAYLOAD-dbhttp001","content":"POSTFIX-PAYLOAD-dbhttp001","attributes":{}}
+{"ts":"2026-11-23T14:30:24.772Z","ns":"wt-dben001-probe","table":"memories","op":"insert","principal":null,"outcome":"accepted","seq":1,"contentHash":"52e7fc72c2bc090bb27cec68148af1cf3b8a7c8a1abd9921794cc082a6b46905","key":{"id":"d6e4db7f-3ac0-4c1f-8427-5f981a0f0ae7"},"targetPath":"raw_note/2026-11/current.jsonl","tombstone":false,"schemaVersion":1}
+
+--- parsed content field (node, direct file read) ---
+record keys : id,key,domain,timestamp,author,action,embedding_text,content,attributes
+content set? true
+content     : "POSTFIX-PAYLOAD-dbhttp001"
+embedding   : "POSTFIX-PAYLOAD-dbhttp001"
+E2E PASS: on-disk record carries content byte-equal to the POSTed string
+direct-read exit code: 0
+
+--- kill daemon ---
+DuckBrain MCP server stopped
+daemon stopped
+=== e2e done, direct-read exit=0 ===

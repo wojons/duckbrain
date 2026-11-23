@@ -1,0 +1,27 @@
+{
+  "tick": "duckbrain-foreman-2026-11-23-14-13-51",
+  "created": "2026-11-23T14:23:00Z",
+  "block": "HARDEN-DUCKBRAIN (contract row HARDEN-DUCKBRAIN-001)",
+  "block_selection": "resume-first per handoff /handoff/duckbrain/foreman/2026-11-23T05:22:00Z + block_drive top DRIVE line (90% done, P0)",
+  "wave_budget": 1,
+  "slots": "max(1, min(6, 16 - ceil(21.26))) = 1 (host load 21.26/16)",
+  "rows": [
+    {
+      "id": "DB-HTTP-001",
+      "priority": "P1",
+      "status_before": "pending",
+      "worktree": "/home/kara/worktrees/duckbrain-DB-HTTP-001",
+      "branch": "wt/DB-HTTP-001",
+      "model": "glm-5.3-flash",
+      "provider": "zai-glm",
+      "brief_file": "/tmp/brief-DB-HTTP-001-duckbrain-20261123141351.txt",
+      "base_sha": "5d3b5556",
+      "charter": "hardening loop product row: boundary defect (success-echoing non-persisting write) -> fix -> prove with control -> deploy as test",
+      "depends_on": [],
+      "independent": "single-row wave; no sibling worker this tick (WAVE_BUDGET=1)"
+    }
+  ],
+  "board_track_parallel": [
+    "HARDEN-DUCKBRAIN-001 gate audit refresh (foreman-direct, board plane only): gate (a)/(b) evidence-on-file verification, gate (c) open-P0/P1 disposition census artifact, blocked rows 002/007 owner-gate confirmation"
+  ]
+}

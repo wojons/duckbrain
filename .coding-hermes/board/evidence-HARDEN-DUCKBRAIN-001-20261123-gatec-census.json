@@ -1,0 +1,281 @@
+{
+  "census": "gate (c) open P0/P1 disposition refresh",
+  "generated": "2026-11-23T14:32:42Z",
+  "tick": "duckbrain-foreman-2026-11-23-14-13-51",
+  "note": "disposition derived per-row from the row OWN fields only; no disposition fabricated. Rows classified owner-directive carry the owner decision verbatim in their blocked_reason/title.",
+  "counts": {
+    "total": 38,
+    "parked_owner_gated": 7,
+    "in_flight": 1,
+    "owner_directive_recorded": 3,
+    "dispatchable_backlog": 27
+  },
+  "rows": [
+    {
+      "id": "RELEASE-2026-10-26-001",
+      "priority": "P1",
+      "status": "pending",
+      "disposition": "owner directive/authorization recorded on row",
+      "reason_excerpt": "Releng sweep 2026-11-15T13:19Z (tick duckbrain-releng-2026-11-15-12-18-45, Pass 16) at tip 3dee8fca — THIS ROW IS THE CANONICAL v1.2.0 CUT CONTRACT. FOUR gates,"
+    },
+    {
+      "id": "QA-DUCKBRAIN-PERF-3",
+      "priority": "P1",
+      "status": "blocked",
+      "disposition": "owner-gated/parked — reason on row",
+      "reason_excerpt": "infrastructure-owned: acceptance criteria reference bunker-qa.sh (bunker project) and qa-dagger dispatch config, not duckbrain source"
+    },
+    {
+      "id": "QA-DUCKBRAIN-FOREMAN-1",
+      "priority": "P1",
+      "status": "pending",
+      "disposition": "owner directive/authorization recorded on row",
+      "reason_excerpt": "Owner: bunker/QA lane. Live probe 2026-11-09: df -h / reports /dev/nvme0n1p2 with 417G free (77% used), and /home/kara/.hermes/scripts/bunker-qa.sh no longer co"
+    },
+    {
+      "id": "QA-DUCKBRAIN-FOREMAN-2",
+      "priority": "P1",
+      "status": "blocked",
+      "disposition": "owner-gated/parked — reason on row",
+      "reason_excerpt": "Owner: bunker/QA lane. Live probe 2026-11-09: df -h / reports /dev/nvme0n1p2 with 417G free (77% used), and the bunker harness contains 5 vacuous_native_suite c"
+    },
+    {
+      "id": "RELEASE-2026-11-01-001",
+      "priority": "P1",
+      "status": "pending",
+      "disposition": "owner directive/authorization recorded on row",
+      "reason_excerpt": "NO-GO: exact current candidate CI is green, but owner authorization is absent; version-prep for v1.2.0 is missing; release workflow has no artifact publication;"
+    },
+    {
+      "id": "HARDEN-DUCKBRAIN-001",
+      "priority": "P0",
+      "status": "pending",
+      "disposition": "dispatchable backlog — ready work, no parking reason required",
+      "reason_excerpt": null
+    },
+    {
+      "id": "HARDEN-DUCKBRAIN-002",
+      "priority": "P1",
+      "status": "blocked",
+      "disposition": "owner-gated/parked — reason on row",
+      "reason_excerpt": "OWNER GATE (one restart of :3000): option (b) is REFUTED by measurement (git clean -xdn lists 292 entries under namespaces/), so the row is the MOVE, and the mo"
+    },
+    {
+      "id": "OBSDB-007",
+      "priority": "P1",
+      "status": "blocked",
+      "disposition": "owner-gated/parked — reason on row",
+      "reason_excerpt": "NARROWED 2026-11-10 by duckbrain-ops: step 1 (prove /metrics live, no restart) is DONE — the daemon already serves credential-free /metrics; the owner-authorise"
+    },
+    {
+      "id": "PERF-DUCKBRAIN-001",
+      "priority": "P1",
+      "status": "blocked",
+      "disposition": "owner-gated/parked — reason on row",
+      "reason_excerpt": "CODE HALF LANDED, DATA HALF OWNER-GATED: the O(nRows log nRows) dedup sort is gone from the plain list path (cold coding-hermes 508->275ms, warm 355->230ms on t"
+    },
+    {
+      "id": "PERF-DUCKBRAIN-002",
+      "priority": "P1",
+      "status": "blocked",
+      "disposition": "owner-gated/parked — reason on row",
+      "reason_excerpt": "AC5 landed (0d43addb, gitreins PASS). AC1-4 + AC6 need the OWNER: production segment compaction of the live namespaces and a :3000 relaunch."
+    },
+    {
+      "id": "SEC-AUTHZ-001",
+      "priority": "P1",
+      "status": "blocked",
+      "disposition": "owner-gated/parked — reason on row",
+      "reason_excerpt": "OWNER INPUT REQUIRED: per-key intended role for 17 live roles-less tokens in ~/.duckbrain/auth.json (AC-2 says ask the owner where intent is unknown). Flipping "
+    },
+    {
+      "id": "S3-READ-AMPLIFICATION-001",
+      "priority": "P1",
+      "status": "pending",
+      "disposition": "dispatchable backlog — ready work, no parking reason required",
+      "reason_excerpt": null
+    },
+    {
+      "id": "DB-3",
+      "priority": "P1",
+      "status": "pending",
+      "disposition": "dispatchable backlog — ready work, no parking reason required",
+      "reason_excerpt": null
+    },
+    {
+      "id": "DB-6",
+      "priority": "P1",
+      "status": "pending",
+      "disposition": "dispatchable backlog — ready work, no parking reason required",
+      "reason_excerpt": null
+    },
+    {
+      "id": "RELEASE-2026-11-09-001",
+      "priority": "P1",
+      "status": "pending",
+      "disposition": "dispatchable backlog — ready work, no parking reason required",
+      "reason_excerpt": null
+    },
+    {
+      "id": "S3-DR-HISTORY-001",
+      "priority": "P1",
+      "status": "pending",
+      "disposition": "dispatchable backlog — ready work, no parking reason required",
+      "reason_excerpt": null
+    },
+    {
+      "id": "S3-HISTORY-COVERAGE-001",
+      "priority": "P1",
+      "status": "pending",
+      "disposition": "dispatchable backlog — ready work, no parking reason required",
+      "reason_excerpt": null
+    },
+    {
+      "id": "S3-LEDGER-COMPLETENESS-001",
+      "priority": "P1",
+      "status": "pending",
+      "disposition": "dispatchable backlog — ready work, no parking reason required",
+      "reason_excerpt": null
+    },
+    {
+      "id": "S3-PULL-MANIFEST-GUARD-001",
+      "priority": "P1",
+      "status": "pending",
+      "disposition": "dispatchable backlog — ready work, no parking reason required",
+      "reason_excerpt": null
+    },
+    {
+      "id": "REST-PK-UNIQUENESS-001",
+      "priority": "P1",
+      "status": "pending",
+      "disposition": "dispatchable backlog — ready work, no parking reason required",
+      "reason_excerpt": null
+    },
+    {
+      "id": "DDL-EVOLVE-001",
+      "priority": "P1",
+      "status": "pending",
+      "disposition": "dispatchable backlog — ready work, no parking reason required",
+      "reason_excerpt": null
+    },
+    {
+      "id": "MCP-SQUASH-GATE-001",
+      "priority": "P1",
+      "status": "pending",
+      "disposition": "dispatchable backlog — ready work, no parking reason required",
+      "reason_excerpt": null
+    },
+    {
+      "id": "CLI-TABLES-VERBS-001",
+      "priority": "P1",
+      "status": "pending",
+      "disposition": "dispatchable backlog — ready work, no parking reason required",
+      "reason_excerpt": null
+    },
+    {
+      "id": "MCP-OPS-S3-TOOLS-001",
+      "priority": "P1",
+      "status": "pending",
+      "disposition": "dispatchable backlog — ready work, no parking reason required",
+      "reason_excerpt": null
+    },
+    {
+      "id": "QUERY-HTTP-001",
+      "priority": "P1",
+      "status": "pending",
+      "disposition": "dispatchable backlog — ready work, no parking reason required",
+      "reason_excerpt": null
+    },
+    {
+      "id": "DOCS-EXAMPLES-001",
+      "priority": "P1",
+      "status": "pending",
+      "disposition": "dispatchable backlog — ready work, no parking reason required",
+      "reason_excerpt": null
+    },
+    {
+      "id": "RELEASE-VERSION-001",
+      "priority": "P1",
+      "status": "pending",
+      "disposition": "dispatchable backlog — ready work, no parking reason required",
+      "reason_excerpt": null
+    },
+    {
+      "id": "REST-IDEMPOTENCY-001",
+      "priority": "P1",
+      "status": "pending",
+      "disposition": "dispatchable backlog — ready work, no parking reason required",
+      "reason_excerpt": null
+    },
+    {
+      "id": "RELEASE-2026-11-15-001",
+      "priority": "P1",
+      "status": "pending",
+      "disposition": "dispatchable backlog — ready work, no parking reason required",
+      "reason_excerpt": null
+    },
+    {
+      "id": "INT-CI-039",
+      "priority": "P1",
+      "status": "pending",
+      "disposition": "dispatchable backlog — ready work, no parking reason required",
+      "reason_excerpt": null
+    },
+    {
+      "id": "QA-DUCKBRAIN-042",
+      "priority": "P1",
+      "status": "pending",
+      "disposition": "dispatchable backlog — ready work, no parking reason required",
+      "reason_excerpt": null
+    },
+    {
+      "id": "QA-DUCKBRAIN-044",
+      "priority": "P1",
+      "status": "pending",
+      "disposition": "dispatchable backlog — ready work, no parking reason required",
+      "reason_excerpt": null
+    },
+    {
+      "id": "QA-DUCKBRAIN-046",
+      "priority": "P1",
+      "status": "pending",
+      "disposition": "dispatchable backlog — ready work, no parking reason required",
+      "reason_excerpt": null
+    },
+    {
+      "id": "INT-CI-041",
+      "priority": "P1",
+      "status": "pending",
+      "disposition": "dispatchable backlog — ready work, no parking reason required",
+      "reason_excerpt": null
+    },
+    {
+      "id": "INT-CI-042",
+      "priority": "P1",
+      "status": "pending",
+      "disposition": "dispatchable backlog — ready work, no parking reason required",
+      "reason_excerpt": null
+    },
+    {
+      "id": "DB-HTTP-001",
+      "priority": "P1",
+      "status": "in_progress",
+      "disposition": "in-flight this tick",
+      "reason_excerpt": null
+    },
+    {
+      "id": "DF-MCP-HTTP-001",
+      "priority": "P1",
+      "status": "pending",
+      "disposition": "dispatchable backlog — ready work, no parking reason required",
+      "reason_excerpt": null
+    },
+    {
+      "id": "INT-CI-043",
+      "priority": "P1",
+      "status": "pending",
+      "disposition": "dispatchable backlog — ready work, no parking reason required",
+      "reason_excerpt": null
+    }
+  ]
+}

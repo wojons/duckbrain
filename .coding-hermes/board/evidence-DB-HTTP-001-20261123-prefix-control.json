@@ -1,0 +1,17 @@
+{
+  "row": "DB-HTTP-001",
+  "kind": "pre-fix control (FAILIF reproduction at HEAD)",
+  "tick": "duckbrain-foreman-2026-11-23-14-13-51",
+  "head": "5d3b5556",
+  "date": "2026-11-23T14:21:44Z",
+  "method": "scratch daemon from this checkout (fresh npm run build:cli, BUILD_EXIT=0), port 28777 --auth=none, own DUCKBRAIN_NAMESPACES_PATH=/tmp/dbhttp001-repro/ns, namespace autocreated scratch-probe-dben001; production :3000 untouched",
+  "post": {
+    "url": "POST /api/memories?namespace=scratch-probe-dben001",
+    "body": {"key": "/probe/dbhttp001-control", "domain": "event", "content": "REPRO-PAYLOAD-dbhttp001-at-5d3b5556"},
+    "response_status": 201,
+    "response_echoed_content": "REPRO-PAYLOAD-dbhttp001-at-5d3b5556"
+  },
+  "on_disk_record": {"id": "13e45ac1-8f81-4638-bdb2-1bfd796979fb", "key": "/probe/dbhttp001-control", "domain": "event", "timestamp": "2026-11-23T14:21:44.149Z", "author": "totalwindupflightsystems@gmail.com", "action": "add", "embedding_text": "REPRO-PAYLOAD-dbhttp001-at-5d3b5556", "attributes": {}},
+  "finding": "record on disk carries NO content key; payload byte-equal ONLY in embedding_text — matches the sibling's store-wide census (0/200 recent records carry content)",
+  "verdict": "FAILIF reproduced: defect live at 5d3b5556"
+}

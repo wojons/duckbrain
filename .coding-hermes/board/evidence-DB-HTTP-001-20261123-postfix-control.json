@@ -1,0 +1,27 @@
+{
+  "row": "DB-HTTP-001",
+  "kind": "post-fix independent foreman control",
+  "tick": "duckbrain-foreman-2026-11-23-14-13-51",
+  "method": "fresh dist build from branch tip b94f5e6ad in worktree; scratch daemon :28790 --auth=none, own DUCKBRAIN_NAMESPACES_PATH=/tmp/dbhttp001-foreman-verify/ns; production untouched",
+  "post": {
+    "body_key": "/probe/foreman-verify",
+    "body_domain": "concept",
+    "payload": "FOREMAN-VERIFY-dbhttp001-UNICODE-é✓-newline_1795444986",
+    "response_id": "e71f3fc2-0f05-478b-8760-6f9f41218dd7",
+    "response_echoed_content": "FOREMAN-VERIFY-dbhttp001-UNICODE-é✓-newline_1795444986"
+  },
+  "on_disk_record_keys": [
+    "action",
+    "attributes",
+    "author",
+    "content",
+    "domain",
+    "embedding_text",
+    "id",
+    "key",
+    "timestamp"
+  ],
+  "content_byte_equal": true,
+  "verdict": "PASS — content key present byte-equal to posted string, direct file read; embedding_text intact",
+  "worker_leg": "worker e2e transcript dbhttp001-postfix-e2e.txt (untracked, in worktree) + 9/9 regression tests re-run by foreman"
+}
