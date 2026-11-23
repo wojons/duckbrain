@@ -1,0 +1,96 @@
+{
+  "control": "HARDEN-DUCKBRAIN-008 pre-fix control (paired census)",
+  "tick": "duckbrain-foreman-2026-11-23-04-47-53",
+  "freeze_root": "/home/kara/duckbrain-frozen-control-008/namespaces",
+  "namespace": "anime",
+  "input_note": "single cp -a frozen copy of namespaces/anime (6 legacy row-image records, _audit/current.jsonl:1 = legacy shape: full row image, no contentHash) - SAME input for both arms",
+  "prefix_arm": {
+    "code_commit": "972aeb00",
+    "note": "parent of fix 609c9718 (pre-fix)",
+    "result": {
+      "root": "/home/kara/duckbrain-frozen-control-008/namespaces",
+      "namespacesScanned": 1,
+      "namespacesSkipped": 0,
+      "commitsScanned": 1,
+      "namespacesCorrupt": 1,
+      "corruptCommits": 1,
+      "namespacesErrored": 0,
+      "corrupt": [
+        {
+          "namespace": "anime",
+          "head": "96954edba11a19a979c29a2aa47d06b036a0e2fd",
+          "corruptCommits": 1,
+          "classes": {
+            "malformed-change-record": 1
+          },
+          "firstSample": {
+            "commit": "96954edba11a19a979c29a2aa47d06b036a0e2fd",
+            "committedAt": "2026-09-20T20:51:51-05:00",
+            "path": "_audit/current.jsonl",
+            "line": 1,
+            "class": "malformed-change-record",
+            "message": "accepted change record at '_audit/current.jsonl:1' is malformed: contentHash: Invalid input: expected string, received undefined"
+          }
+        }
+      ],
+      "namespaces": [
+        {
+          "namespace": "anime",
+          "head": "96954edba11a19a979c29a2aa47d06b036a0e2fd",
+          "commits": 1,
+          "derivedChanges": 0,
+          "corruptCommits": 1,
+          "classes": {
+            "malformed-change-record": 1
+          },
+          "samples": [
+            {
+              "commit": "96954edba11a19a979c29a2aa47d06b036a0e2fd",
+              "committedAt": "2026-09-20T20:51:51-05:00",
+              "path": "_audit/current.jsonl",
+              "line": 1,
+              "class": "malformed-change-record",
+              "message": "accepted change record at '_audit/current.jsonl:1' is malformed: contentHash: Invalid input: expected string, received undefined"
+            }
+          ],
+          "samplesTruncated": 0,
+          "status": "corrupt",
+          "error": null
+        }
+      ]
+    }
+  },
+  "postfix_arm": {
+    "code_commit": "5ecadec5",
+    "note": "origin/main tip at tick start (post-fix)",
+    "result": {
+      "root": "/home/kara/duckbrain-frozen-control-008/namespaces",
+      "namespacesScanned": 1,
+      "namespacesSkipped": 0,
+      "commitsScanned": 1,
+      "namespacesCorrupt": 0,
+      "corruptCommits": 0,
+      "namespacesErrored": 0,
+      "corrupt": [],
+      "namespaces": [
+        {
+          "namespace": "anime",
+          "head": "96954edba11a19a979c29a2aa47d06b036a0e2fd",
+          "commits": 1,
+          "derivedChanges": 6,
+          "corruptCommits": 0,
+          "classes": {},
+          "samples": [],
+          "samplesTruncated": 0,
+          "status": "clean",
+          "error": null
+        }
+      ]
+    }
+  },
+  "verdict": "DECISIVE: same frozen input, pre-fix code flags malformed-change-record (contentHash expected string, received undefined), post-fix code derives 6 changes cleanly - fix 609c9718 changes the outcome on real production legacy data",
+  "commands": [
+    "prefix: tsx (main node_modules) scripts/changelog-corrupt-census.ts --root /home/kara/duckbrain-frozen-control-008/namespaces --ns anime (cwd=/home/kara/worktrees/duckbrain-008-prefix @972aeb00)",
+    "postfix: pnpm exec tsx scripts/changelog-corrupt-census.ts --root /home/kara/duckbrain-frozen-control-008/namespaces --ns anime (cwd=/home/kara/duckbrain @5ecadec5)"
+  ]
+}

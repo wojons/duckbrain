@@ -1,0 +1,31 @@
+{
+  "tick": "duckbrain-foreman-2026-11-23-04-47-53",
+  "block": "HARDEN-DUCKBRAIN (contract row HARDEN-DUCKBRAIN-001)",
+  "mode": "serial foreman-direct verification (no workers)",
+  "slots": 1,
+  "slots_reason": "nproc=16 loadavg=14.77 -> max(1, min(6, 16-15)) = 1; loaded box = one unit of work, not idle.",
+  "wave_size": 1,
+  "wave_size_reason": "1 slot. Block has 2 reopened ready rows (-008 P1 control, -010 P2 duration proof) but they are verification proofs, not code implementation; worker dispatch would add nothing - foreman-direct verification per evidence-only-task-closeout pattern. No implementation -> no gitreins task create (HARDEN-DUCKBRAIN-008/-010 tasks already complete in .gitreins).",
+  "resume": "RESUME of tick duckbrain-foreman-2026-11-23-01-02-00's block; reopen commits d3d144a1 (-010 incomplete guard-duration proof) and 5ecadec5 (-008 pending pre-fix control) name the residual work.",
+  "rows": [
+    {
+      "id": "HARDEN-DUCKBRAIN-008",
+      "priority": "P1",
+      "work": "pre-fix control: paired census on SAME frozen input (namespaces/anime cp -a, 6 legacy row-image records); pre-fix code 972aeb00 (=609c9718^) must flag malformed-change-record, post-fix main 5ecadec5 must derive clean",
+      "worktree": "/home/kara/worktrees/duckbrain-008-prefix (read-only checkout @972aeb00; node_modules symlinked)",
+      "branch": null,
+      "evidence": ".coding-hermes/board/evidence-HARDEN-DUCKBRAIN-008-20261123-control.json",
+      "outcome": "executed this tick - DECISIVE (pre: 1 corrupt malformed-change-record @ _audit/current.jsonl:1; post: 0 corrupt, 6 derived)"
+    },
+    {
+      "id": "HARDEN-DUCKBRAIN-010",
+      "priority": "P2",
+      "work": "guard-duration magnitude proof: hook's own timestamped verdict on a commit whose suite takes >300s (fix 17534895 sets hook_timeout 1920 > test_timeout 1800)",
+      "worktree": null,
+      "branch": null,
+      "outcome": "queued after -008 close; may defer to next tick if guard wall-clock under current load stays <300s"
+    }
+  ],
+  "model": "glm-5.3-flash@zai-glm (configured worker_model; no workers dispatched this tick)",
+  "crash_recovery": "control evidence already on disk in .coding-hermes/board/; next tick binds it and closes -008 without re-running the census."
+}
