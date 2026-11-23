@@ -161,7 +161,7 @@ function parseDuckDBStruct(structStr: string): Record<string, unknown> {
  * instead of a native throw.
  */
 const READ_JSON_COLUMNS =
-  "columns={id:'VARCHAR', key:'VARCHAR', domain:'VARCHAR', timestamp:'VARCHAR', author:'VARCHAR', action:'VARCHAR', embedding_text:'VARCHAR', attributes:'VARCHAR'}";
+  "columns={id:'VARCHAR', key:'VARCHAR', domain:'VARCHAR', timestamp:'VARCHAR', author:'VARCHAR', action:'VARCHAR', embedding_text:'VARCHAR', content:'VARCHAR', attributes:'VARCHAR'}";
 
 /**
  * Namespace directories under the resolved root that carry a manifest.
@@ -275,7 +275,7 @@ async function queryRecentActivity(
 
   return new Promise((resolve) => {
     const sql = `
-      SELECT id, key, domain, timestamp, author, action, embedding_text, attributes, filename
+      SELECT id, key, domain, timestamp, author, action, embedding_text, content, attributes, filename
       FROM read_json([${globList}], filename=true, format='newline_delimited', ignore_errors=true, ${READ_JSON_COLUMNS})
       WHERE action != 'tombstone'
       ORDER BY timestamp DESC
@@ -299,7 +299,10 @@ async function queryRecentActivity(
                 timestamp: row.timestamp,
                 author: row.author,
                 action: row.action,
-                content: row.embedding_text || "",
+                // DB-HTTP-001: prefer the persisted content field (present on
+                // rows written since the fix); legacy rows have none (NULL)
+                // and keep serving embedding_text, as before.
+                content: row.content ?? (row.embedding_text || ""),
                 attributes:
                   typeof row.attributes === "string"
                     ? parseDuckDBStruct(row.attributes)

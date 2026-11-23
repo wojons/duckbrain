@@ -299,7 +299,10 @@ function transformMemory(memory: any): MemoryResponse {
     id: memory.id,
     key: memory.key,
     domain: memory.domain,
-    content: memory.embedding_text,
+    // DB-HTTP-001: prefer the persisted content field when present (records
+    // carry it since the DB-HTTP-001 fix); legacy rows without one fall back
+    // to embedding_text, which every pre-fix reader effectively served.
+    content: memory.content ?? memory.embedding_text,
     attributes: memory.attributes || {},
     timestamp: memory.timestamp,
     // RETR-011: optional validity window — echoed from the stored row when
@@ -763,6 +766,10 @@ router.post(
         // response echoes it — the stored row and the response must agree.
         attributes: normalizeAttributes(body.attributes),
         embedding_text: body.content,
+        // DB-HTTP-001: persist the client payload as the record's `content`
+        // field too — the 201 has always echoed it; without this the stored
+        // JSONL row carried the payload only inside embedding_text.
+        content: body.content,
         // RETR-011: optional validity window — passthrough; omitted fields
         // keep the legacy always-current behavior.
         // DF-0919-05: camelCase validFrom/validUntil are accepted and mapped
@@ -914,6 +921,9 @@ router.put(
         domain: existingMemory.domain as any,
         attributes: newAttributes,
         embedding_text: newContent,
+        // DB-HTTP-001: persist the same newContent this route echoes in the
+        // response — previously the updated row dropped the content field.
+        content: newContent,
         namespace,
         ...(principal ? { author: principalAuthorEmail(principal) } : {}),
       },
