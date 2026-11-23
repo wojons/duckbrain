@@ -3626,3 +3626,12 @@ tasks:
   status: complete
   created_at: '2026-11-22T21:03:33.950483+00:00'
   completed_at: '2026-11-23T00:18:51.692917+00:00'
+- id: HARDEN-DUCKBRAIN-010
+  title: GitReins guard hook_timeout must exceed test_timeout (fail-open cut-off)
+  criteria:
+  - guards.hook_timeout set above guards.test_timeout in .gitreins/config.yaml with
+    rationale comment; judge/guard output shows the hook_timeout<=test_timeout WARN
+    gone; a graded run's own log records a completed tests verdict with no SKIP and
+    no hook_timeout cut; no other guard budget lowered
+  status: in_progress
+  created_at: '2026-11-23T01:09:14.792030+00:00'

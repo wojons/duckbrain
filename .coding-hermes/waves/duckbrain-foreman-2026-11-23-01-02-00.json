@@ -1,0 +1,32 @@
+{
+  "tick": "duckbrain-foreman-2026-11-23-01-02-00",
+  "block": "HARDEN-DUCKBRAIN (contract row HARDEN-DUCKBRAIN-001)",
+  "mode": "serial + parallel reconciliation",
+  "slots": 1,
+  "slots_reason": "nproc=16 loadavg=24.99 -> max(1, min(6, 16-ceil(24.99))) = 1; loaded box = 1 worker, not idle. WAVE_BUDGET=5 not binding.",
+  "wave_size": 1,
+  "wave_size_reason": "1 slot; block's dispatchable ready rows are single-worker sized (-008 resolved by reconciliation, -010 dispatched)",
+  "rows": [
+    {
+      "id": "HARDEN-DUCKBRAIN-008",
+      "disposition": "reconciliation-verify-and-close",
+      "why": "fix 609c9718 landed on main 2026-11-08 (judge run b8210408, gitreins task status=complete) but the row was reset to pending on 2026-11-17 and never closed; re-dispatching would duplicate landed work. Foreman verifies ACs in-tree: tolerance test replay-legacy-row-image.test.ts 5/5 PASS on main (observed this tick), frozen-copy census regenerated fresh, full suite run post-merge.",
+      "worktree": null,
+      "branch": null
+    },
+    {
+      "id": "HARDEN-DUCKBRAIN-010",
+      "status_at_tick_start": "pending",
+      "priority": "P2",
+      "worker_model": "glm-5.3-flash",
+      "worker_provider": "zai-glm",
+      "worktree": "/home/kara/worktrees/duckbrain-HARDEN-DUCKBRAIN-010",
+      "branch": "wt/HARDEN-DUCKBRAIN-010",
+      "base_sha": "fa25a680",
+      "brief": "/tmp/brief-hdb010-20261123-0102.md",
+      "gitreins_task": "created+started this tick"
+    }
+  ],
+  "model": "glm-5.3-flash@zai-glm (configured worker_model, authoritative)",
+  "crash_recovery": "if this tick dies post-dispatch: worker session id in board event; worktree wt/HARDEN-DUCKBRAIN-010 survives; next tick resumes verification of that branch (no re-dispatch)"
+}
