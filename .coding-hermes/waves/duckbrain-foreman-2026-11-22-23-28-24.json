@@ -1,0 +1,30 @@
+{
+  "tick": "duckbrain-foreman-2026-11-22-23-28-24",
+  "block": "PERF-DUCKBRAIN (row PERF-DUCKBRAIN-003)",
+  "mode": "serial-resume",
+  "slots": 1,
+  "slots_reason": "nproc=16 loadavg=21.06 -> max(1, min(6, 16-22)) = 1; loaded box = 1 worker, not idle",
+  "wave_size": 0,
+  "wave_size_reason": "resume tick: no new dispatch; the row's worker commit 4bff1094 was already merged to main and pushed by crashed tick 20-59-01; this tick finishes its gitreins lifecycle",
+  "rows": [
+    {
+      "id": "PERF-DUCKBRAIN-003",
+      "status_at_tick_start": "pending",
+      "worker_commit": "4bff1094959c068f37ff771b5c6db5f9771f61a8",
+      "worktree": "/home/kara/worktrees/duckbrain-PERF-DUCKBRAIN-003",
+      "branch": "wt/PERF-DUCKBRAIN-003",
+      "prior_judges": [
+        {"run": "b5185d27", "result": "tier2 INCOMPLETE (output-budget starvation 0.05M)"},
+        {"run": "abe29436", "result": "tier2 INCOMPLETE (same), merge_recommendation no_concerns_found"}
+      ],
+      "this_tick": [
+        "residue commit 1e415049 (gitreins history rescue deletions + review-state, stale lock removed)",
+        "foreman independent check: vitest queries-newest-segments-perf003.test.ts 6/6 PASS on wt tree",
+        "standalone gitreins judge at HEAD 1e415049 with raised 0.1M tier2 budget (in flight)",
+        "boardctl close citing the fresh run -> gitreins task complete adopts verdict (CH-MAINT-16) -> commit + push"
+      ]
+    }
+  ],
+  "model": "glm-5.3-flash@zai-glm (configured worker_model; no new dispatch this tick)",
+  "crash_recovery": "if this tick dies mid-judge: the judge job writes .gitreins/history/2026-11-22/<run-id>/; next tick re-runs boardctl close with that run id, then gitreins task complete (adopts if tree unchanged)"
+}

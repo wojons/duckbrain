@@ -3623,5 +3623,6 @@ tasks:
     cache keyed by directory mtime that never weakens per-file (size,mtimeMs) corruption
     invalidation; warm limit=10 fleet-quality under 900ms; limit=200 first-200 keys
     identical; suite green; test-counts.json regenerated in the same commit
-  status: in_progress
+  status: complete
   created_at: '2026-11-22T21:03:33.950483+00:00'
+  completed_at: '2026-11-23T00:18:51.692917+00:00'
