@@ -1,0 +1,91 @@
+diff --git a/src/http/routes/activity-namespace-attribution.test.ts b/src/http/routes/activity-namespace-attribution.test.ts
+index b5e6d480..0ebc03f7 100644
+--- a/src/http/routes/activity-namespace-attribution.test.ts
++++ b/src/http/routes/activity-namespace-attribution.test.ts
+@@ -18,6 +18,7 @@
+ 
+ import { describe, it, expect, beforeAll, afterAll } from "vitest";
+ import { createHttpServer } from "../../cli/http";
++import { flushReadLedgerForTests } from "../readLedger";
+ import { createServer, Server } from "http";
+ import fs from "fs";
+ import os from "os";
+@@ -28,6 +29,58 @@ let port: number;
+ let scratchDir: string;
+ let oldNamespacesPath: string | undefined;
+ 
++/**
++ * INT-CI-041 — the scratch root has a WRITER that outlives `server.close()`.
++ *
++ * `createHttpServer()` mounts the OBS-DUCKBRAIN-001 read ledger (src/cli/http.ts
++ * → src/http/middleware/readLedger.ts) on the namespace root this suite points
++ * at via DUCKBRAIN_NAMESPACES_PATH. The middleware queues its append on the
++ * response's `finish` event, and the append itself is a chain of async fs calls
++ * (mkdir, stat, appendFile) — so the client can have its JSON body, the test
++ * can have finished asserting, and `server.close()` can have resolved while
++ * `<scratch>/.duckbrain-audit/reads.jsonl` is still being created. An immediate
++ * recursive rmdir then races that write and dies with
++ *
++ *   ENOTEMPTY: directory not empty, rmdir <scratch>/.duckbrain-audit
++ *
++ * (measured under full parallel load: gitreins tier-1 run 2222cfb5 plus five
++ * leaked /mnt/ssd/tmp/duckbrain-activity-nsattr-* dirs, each containing exactly
++ * `.duckbrain-audit/reads.jsonl` and nothing else). A teardown-only failure
++ * reds the whole CI job while every assertion passed, and the leaked dir poisons
++ * later tooling.
++ *
++ * Two layers, both cheap:
++ *   1. `await flushReadLedgerForTests()` — the ledger exposes its serialized
++ *      append tail as a test seam, so we drain every queued row instead of
++ *      guessing when it landed.
++ *   2. `rmScratchDir()` — retry-with-backoff on the transient codes, so even an
++ *      append queued after the flush (a straggler) cannot fail the teardown.
++ */
++const TEARDOWN_RETRY_CODES = new Set(["ENOTEMPTY", "EBUSY", "EPERM"]);
++const TEARDOWN_MAX_ATTEMPTS = 10;
++
++/** Remove `dir` recursively, tolerating a writer that is still settling. */
++async function rmScratchDir(dir: string): Promise<void> {
++  let delayMs = 10;
++  for (let attempt = 1; ; attempt += 1) {
++    try {
++      fs.rmSync(dir, { recursive: true, force: true });
++      return;
++    } catch (error) {
++      const code = (error as NodeJS.ErrnoException).code;
++      if (
++        attempt >= TEARDOWN_MAX_ATTEMPTS ||
++        code === undefined ||
++        !TEARDOWN_RETRY_CODES.has(code)
++      ) {
++        throw error;
++      }
++      await new Promise<void>((resolve) => setTimeout(resolve, delayMs));
++      delayMs = Math.min(delayMs * 2, 500);
++    }
++  }
++}
++
+ interface HttpResponse {
+   status: number;
+   body: any;
+@@ -133,13 +186,18 @@ describe("ACTIVITY-NS-ATTR: /activity attributes each row to its own namespace",
+     if (server) {
+       await new Promise<void>((resolve) => server.close(() => resolve()));
+     }
++    // INT-CI-041: `server.close()` only ends the sockets — it does not wait for
++    // the read-ledger append queued by the /activity GET to finish writing, so
++    // drain that writer before the scratch root is removed (see the block
++    // comment above rmScratchDir for the measured failure).
++    await flushReadLedgerForTests();
+     if (oldNamespacesPath === undefined) {
+       delete process.env.DUCKBRAIN_NAMESPACES_PATH;
+     } else {
+       process.env.DUCKBRAIN_NAMESPACES_PATH = oldNamespacesPath;
+     }
+     if (scratchDir) {
+-      fs.rmSync(scratchDir, { recursive: true, force: true });
++      await rmScratchDir(scratchDir);
+     }
+   });
+ 
