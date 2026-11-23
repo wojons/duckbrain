@@ -46,6 +46,19 @@ const RememberInputSchema = z.object({
     .describe("Memory attributes"),
   /** Text for vector embedding */
   embedding_text: z.string().describe("Text for vector embedding"),
+  /**
+   * DB-HTTP-001: optional byte-faithful client payload, persisted as the
+   * record's `content` field alongside embedding_text. The HTTP POST route
+   * sends body.content here; MCP/CLI callers omit it and createMemory()
+   * stamps the record's content from embedding_text instead. Embedding
+   * generation still consumes embedding_text.
+   */
+  content: z
+    .string()
+    .optional()
+    .describe(
+      "Byte-faithful content payload stored as the record's content field; omitted = the embedding text is stored as content",
+    ),
   /** RETR-011: optional validity-window start (ISO-8601 datetime, e.g.
    *  2026-08-19T00:00:00.000Z). Absent = valid from the moment of
    *  writing. A future valid_from keeps the memory out of the current
@@ -192,7 +205,7 @@ export async function rememberTool(
       };
     }
 
-    const { key, domain, attributes, embedding_text, namespace, author } =
+    const { key, domain, attributes, embedding_text, content, namespace, author } =
       parseResult.data;
 
     // DB-GAP-058: the write-content policy, enforced at the ONE choke point
@@ -237,6 +250,10 @@ export async function rememberTool(
       domain,
       author: authorIdentity,
       embedding_text,
+      // DB-HTTP-001: persist the caller's content byte-faithfully; undefined
+      // (MCP/CLI callers) lets createMemory stamp it from embedding_text so
+      // every record carries content on disk.
+      content,
       attributes: normalizedAttributes,
       action: "add",
       // RETR-011: optional validity window — passthrough from the input;

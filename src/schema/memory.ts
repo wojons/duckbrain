@@ -90,6 +90,19 @@ export const MemorySchema = z.object({
   /** Text content for vector embedding generation */
   embedding_text: z.string(),
 
+  /**
+   * DB-HTTP-001: the client payload, persisted byte-faithfully alongside
+   * embedding_text (2026-11). POST /api/memories echoed `content` while the
+   * stored JSONL row dropped it — the payload survived only inside
+   * embedding_text. Optional for READ compatibility: rows written before
+   * this field existed have none, and readers fall back to embedding_text.
+   * Every write through createMemory() stamps it (client content when
+   * supplied, embedding_text otherwise), so new rows always carry it.
+   * Embedding generation still consumes embedding_text — this field does
+   * not replace it.
+   */
+  content: z.string().optional(),
+
   /** Flexible attributes as arbitrary JSON */
   attributes: z.record(z.string(), z.any()).default({}),
 });
@@ -218,6 +231,13 @@ export function createMemory(params: {
   domain: Domain;
   author: string;
   embedding_text: string;
+  /**
+   * DB-HTTP-001: byte-faithful client payload — persisted as the record's
+   * `content` field. When absent (MCP/CLI callers that only pass
+   * embedding_text), stamped from embedding_text so EVERY new record
+   * carries content on disk.
+   */
+  content?: string;
   attributes?: Record<string, unknown>;
   action?: Action;
   /** RETR-011: optional validity-window start (ISO-8601) — absent = valid
@@ -241,6 +261,10 @@ export function createMemory(params: {
     author: params.author,
     action: params.action ?? "add",
     embedding_text: params.embedding_text,
+    // DB-HTTP-001: content rides alongside embedding_text — the client's
+    // payload when supplied, embedding_text otherwise (the write census
+    // must never again produce a payload-less record).
+    content: params.content ?? params.embedding_text,
     attributes: params.attributes ?? {},
   };
 }
