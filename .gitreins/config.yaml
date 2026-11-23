@@ -17,6 +17,15 @@ guards:
   # out' while CI on the same SHAs was green). 900s ALSO starved (9f08ab48,
   # loadavg ~80 → suite >900s); 1800s covers the loaded-suite ceiling.
   test_timeout: 1800
+  # HARDEN-DUCKBRAIN-010: hook_timeout is the OVERALL pre-commit budget, so it
+  # must exceed test_timeout or the budget expires mid-suite and the GR-169
+  # timeout path can report a fail-open PASS with the later arms unchecked —
+  # the observed shape in guard-20261104T143342.918838Z.log ("overall: PASS
+  # (DEGRADED — skipped checks)"). With no explicit key the implicit 300s
+  # default is derived at run time to test_timeout + 120 = 1920 (the "Raising
+  # this run's budget" WARN); pinning 1920 here makes that same derived budget
+  # explicit and closes the WARN at the source.
+  hook_timeout: 1920
   # DF-2026-20: .npmrc (scoped registry config) and .env.example (template)
   # are tracked deliberately. GitReins' credential-store PATH class
   # (REVIEW-GITREINS-027) fails those paths REGARDLESS of content, and by
