@@ -191,6 +191,7 @@ describe("DB-HTTP-001: POST /api/memories persists content on disk", () => {
     // DIRECT FILE READ — never through the API. This is the AC.
     const row = rowById(body.id);
     expect(row, "row must exist on disk").toBeDefined();
+    if (!row) throw new Error("row must exist on disk");
     expect(
       Object.prototype.hasOwnProperty.call(row, "content"),
       "content key must be PRESENT on the stored row (not absent, not null)",
@@ -215,6 +216,7 @@ describe("DB-HTTP-001: POST /api/memories persists content on disk", () => {
 
     const row = rowById(body.id);
     expect(row).toBeDefined();
+    if (!row) throw new Error("row must exist on disk");
     expect(row.content).toBe(payload);
     expect(row.embedding_text).toBe(payload);
   });
@@ -247,6 +249,7 @@ describe("DB-HTTP-001: PUT /api/memories/:id persists content on disk", () => {
     // new id, append-only multi-version.)
     const newRow = rowById(body.id);
     expect(newRow).toBeDefined();
+    if (!newRow) throw new Error("newRow must exist on disk");
     expect(Object.prototype.hasOwnProperty.call(newRow, "content")).toBe(true);
     expect(newRow.content).toBe(newContent);
     expect(body.id).not.toBe(created.body.id);
@@ -254,6 +257,7 @@ describe("DB-HTTP-001: PUT /api/memories/:id persists content on disk", () => {
     // The original row is untouched (append-only multi-version).
     const oldRow = rowById(created.body.id);
     expect(oldRow).toBeDefined();
+    if (!oldRow) throw new Error("oldRow must exist on disk");
     expect(oldRow.content).toBe("original body");
     expect(oldRow.action).toBe("add");
   });
@@ -277,6 +281,7 @@ describe("DB-HTTP-001: PUT /api/memories/:id persists content on disk", () => {
 
     const newRow = rowById(body.id);
     expect(newRow).toBeDefined();
+    if (!newRow) throw new Error("newRow must exist on disk");
     expect(newRow.content).toBe("body kept through attribute update");
     expect(newRow.embedding_text).toBe("body kept through attribute update");
   });
@@ -295,6 +300,7 @@ describe("DB-HTTP-001: rememberTool persists content (stdio / MCP transport equi
 
     const row = rowById(result.id!);
     expect(row).toBeDefined();
+    if (!row) throw new Error("row must exist on disk");
     expect(row.content).toBe("stdio payload without separate content");
     expect(row.embedding_text).toBe("stdio payload without separate content");
   });
@@ -313,6 +319,7 @@ describe("DB-HTTP-001: rememberTool persists content (stdio / MCP transport equi
 
     const row = rowById(result.id!);
     expect(row).toBeDefined();
+    if (!row) throw new Error("row must exist on disk");
     expect(row.content).toBe(payload);
     expect(row.embedding_text).toBe(payload);
   });
