@@ -1,0 +1,26 @@
+{
+  "proof": "HARDEN-DUCKBRAIN-010 guard-duration magnitude proof (paired, both directions of the hook budget)",
+  "tick": "duckbrain-foreman-2026-11-23-04-47-53",
+  "fix_under_proof": "17534895 (guards.hook_timeout 1920 > test_timeout 1800; on origin/main)",
+  "isolation": "both probe arms ran in the detached worktree /home/kara/worktrees/duckbrain-HARDEN-DUCKBRAIN-010 @17534895 with a locally edited config (git checkout -- restored after); the shared checkout config was never touched",
+  "arm_cutoff": {
+    "config": "hook_timeout: 30 (below any observed suite wall)",
+    "command": "gitreins guard --full",
+    "observed": "guard timed out at 30s; 'Remaining checks did not run - the run is DEGRADED, not a pass (GR-169)'; Tier 1: DEGRADED; rc=2",
+    "log": ".coding-hermes/board/evidence-HARDEN-DUCKBRAIN-010-20261123-guard-cutoff30s.log",
+    "meaning": "hook_timeout demonstrably bounds the guard run: a budget below the wall IS caught and reported, never silently passed"
+  },
+  "arm_raised": {
+    "config": "hook_timeout: 1920 (the shipped fix)",
+    "command": "gitreins guard --full",
+    "observed": "tests (full) ran to completion: Duration 91.67s, 302/303 files, 1 failure = src/git/autocommit-supapair.test.ts burst-pairing (rate-sensitive 25 writes/s; SOLO RERUN 3/3 PASS 4.26s -> load flake, not a regression; identical product tree passed 2530/2530 on main 12 min earlier); NO cut-off, budget never approached",
+    "log": ".coding-hermes/board/evidence-HARDEN-DUCKBRAIN-010-20261123-guard-1920.log"
+  },
+  "wall_data": [
+    {"date": "2026-11-23T01:25Z", "wall_s": 172.57, "verdict": "PASS tests (full), raised budget (post-fix run)"},
+    {"date": "2026-11-23T05:0xZ", "wall_s": 114.48, "verdict": "2530/2530 PASS, timed vitest run on main under loadavg 14-16"},
+    {"date": "2026-11-23T05:10Z", "wall_s": 91.67, "verdict": "guard --full in worktree (1 load flake, solo-PASS)"}
+  ],
+  "conclusion": "AC1 landed in 17534895 (verified in tree). AC2/AC3 magnitude: the literal 'suite longer than 300s' precondition is UNOBSERVABLE on this box - max observed full-suite wall is 172.57s, so the old 300s default could never have cut this suite's tests lane either. What IS proven, in both directions, is the mechanism AC3 targets: hook_timeout bounds the run (30s budget -> 30s timeout, DEGRADED, not evidence of pass) and the shipped 1920s budget is never approached by any observed wall (<=172.57s). The fail-open cut-off cannot fire with hook_timeout 1920 > test_timeout 1800 > max observed wall.",
+  "disclosure": "worktree config edit was probe-only and reverted (git checkout --); the cut-off-arm guard log and raised-arm guard log are copied into .coding-hermes/board/ as evidence"
+}

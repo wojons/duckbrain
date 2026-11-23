@@ -1,0 +1,97 @@
+GitReins guard run log — full output (the console summary is bounded)
+run_utc: 2026-11-23T05:10:13Z
+workdir: /home/kara/worktrees/duckbrain-HARDEN-DUCKBRAIN-010
+test_mode: full
+test_targets: all (whole tree)
+overall: FAIL
+guards: 2 (1 failed, 0 skipped)
+diagnostics:
+  first_failing_test: none detected
+  secrets_scanners: clean (gitleaks + builtin cross-check; scope: working-tree)
+  scanner_nice: scanners: nice=nice -n 10
+
+==============================================================================
+[FAIL] tests (full)  passed=false  exit_code=1
+==============================================================================
+--- output (untruncated) ---
+scanners: nice=nice -n 10
+
+ RUN  v5.0.5 /home/kara/worktrees/duckbrain-HARDEN-DUCKBRAIN-010
+
+(node:2014675) ExperimentalWarning: SQLite is an experimental feature and might change at any time
+(Use `node --trace-warnings ...` to show where the warning was created)
+ ❯ src/git/autocommit-supapair.test.ts (3 tests | 1 failed) 3604ms
+   ❯ DF-0925-02 AC-1 burst pairing (1)
+     × 30 writes at 25 writes/s: every commit's audit delta covers its data delta 1315ms
+[duckbrain] no precompiled build found — falling back to on-the-fly tsx compilation (slower startup; run `pnpm build:cli` to fix)
+[duckbrain] Cleared stale DuckDB connections
+[duckbrain] MCP server started in stdio mode
+(node:2044370) ExperimentalWarning: SQLite is an experimental feature and might change at any time
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:2048952) ExperimentalWarning: SQLite is an experimental feature and might change at any time
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:2057001) ExperimentalWarning: SQLite is an experimental feature and might change at any time
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:2058642) ExperimentalWarning: SQLite is an experimental feature and might change at any time
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:2059950) ExperimentalWarning: SQLite is an experimental feature and might change at any time
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:2060599) ExperimentalWarning: SQLite is an experimental feature and might change at any time
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:2060711) ExperimentalWarning: SQLite is an experimental feature and might change at any time
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:2060927) ExperimentalWarning: SQLite is an experimental feature and might change at any time
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:2061018) ExperimentalWarning: SQLite is an experimental feature and might change at any time
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:2061043) ExperimentalWarning: SQLite is an experimental feature and might change at any time
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:2061066) ExperimentalWarning: SQLite is an experimental feature and might change at any time
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:2061123) ExperimentalWarning: SQLite is an experimental feature and might change at any time
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:2061134) ExperimentalWarning: SQLite is an experimental feature and might change at any time
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:2061164) ExperimentalWarning: SQLite is an experimental feature and might change at any time
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:2061186) ExperimentalWarning: SQLite is an experimental feature and might change at any time
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:2061192) ExperimentalWarning: SQLite is an experimental feature and might change at any time
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:2061325) ExperimentalWarning: SQLite is an experimental feature and might change at any time
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:2061359) ExperimentalWarning: SQLite is an experimental feature and might change at any time
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:2061585) ExperimentalWarning: SQLite is an experimental feature and might change at any time
+(Use `node --trace-warnings ...` to show where the warning was created)
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  src/git/autocommit-supapair.test.ts > DF-0925-02 AC-1 burst pairing > 30 writes at 25 writes/s: every commit's audit delta covers its data delta
+AssertionError: expected 2 to be greater than or equal to 3
+ ❯ src/git/autocommit-supapair.test.ts:430:28
+    428|     const census = pairCensus(nsPath);
+    429|     // Multiple commits prove the burst crossed several commit boundar…
+    430|     expect(census.commits).toBeGreaterThanOrEqual(3);
+       |                            ^
+    431|     expect(census.totalDataIds).toBe(30);
+    432|     expect(census.totalAuditIds).toBe(30);
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯
+
+
+ Test Files  1 failed | 302 passed (303)
+      Tests  1 failed | 2528 passed | 1 skipped (2530)
+   Start at  00:08:41
+   Duration  91.67s (tests 82%, import 17%, setup 1%)
+
+    Isolate  303 workers spawned · ~81ms startup each (spawn + environment, per file)
+             at least ~6.03s faster with isolate: false — reuses workers across files instead of one per file
+
+==============================================================================
+[PASS] secrets  passed=true  exit_code=n/a
+==============================================================================
+--- output (untruncated) ---
+gitleaks: clean (whole tree)
+sensitive-path override applied: .npmrc
+sensitive-path override applied: .env.example
