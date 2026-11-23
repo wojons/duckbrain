@@ -1,5 +1,34 @@
 {
   "version": 1,
-  "run": 5,
-  "findings": []
+  "run": 7,
+  "findings": [
+    {
+      "fingerprint": "c72add86870ec68fa0d85a27df22300865154fe75c035568ed778532a281ddd2",
+      "status": "RESOLVED",
+      "file": ".coding-hermes/board/tasks.jsonl",
+      "header": "medium|unknown|new row's `detail` field is a plain string while every existing row in this file that carries `detail` uses the structural object form {\"metadata\":{},\"fingerprint\":...} (lines 622 and 623)",
+      "body": "DB-HTTP-001 sets \"detail\":\"Reproduced 2026-11-23T00:06-00:07Z ...\" as a string, whereas INT-CI-042 and PERF-017 both set \"detail\":{\"metadata\":{},\"fingerprint\":\"<sha256>\"}, so the fingerprint/metadata shape used by the two most recent board rows is not reproduced.",
+      "echo": "[medium][unknown] .coding-hermes/board/tasks.jsonl:624 — new row's `detail` field is a plain string while every existing row in this file that carries `detail` uses the structural object form {\"metadata\":{},\"fingerprint\":...} (lines 622 and 623)\nDB-HTTP-001 sets \"detail\":\"Reproduced 2026-11-23T00:06-00:07Z ...\" as a string, whereas INT-CI-042 and PERF-017 both set \"detail\":{\"metadata\":{},\"fingerprint\":\"<sha256>\"}, so the fingerprint/metadata shape used by the two most recent board rows is not reproduced.",
+      "severity": "medium",
+      "category": "unknown",
+      "first_seen_run": 6,
+      "last_seen_run": 6,
+      "dismissed_by": null,
+      "dismissed_reason": null
+    },
+    {
+      "fingerprint": "a101ed6a0c7449d7c717cd4016b1db36d68b92469a5fcb596216aa5670969c8e",
+      "status": "RESOLVED",
+      "file": ".coding-hermes/board/tasks.jsonl",
+      "header": "low|unknown|new row's `acceptance_criteria` is an array of strings while all three prior rows in this file (lines 621-623) encode `acceptance_criteria` as a single string",
+      "body": "DB-HTTP-001 writes \"acceptance_criteria\":[\"FAILIF: ...\"] but DB-GAP-067, INT-CI-042 and PERF-017 all write acceptance_criteria as one text string, a shape change in a shared board field.",
+      "echo": "[low][unknown] .coding-hermes/board/tasks.jsonl:624 — new row's `acceptance_criteria` is an array of strings while all three prior rows in this file (lines 621-623) encode `acceptance_criteria` as a single string\nDB-HTTP-001 writes \"acceptance_criteria\":[\"FAILIF: ...\"] but DB-GAP-067, INT-CI-042 and PERF-017 all write acceptance_criteria as one text string, a shape change in a shared board field.",
+      "severity": "low",
+      "category": "unknown",
+      "first_seen_run": 6,
+      "last_seen_run": 6,
+      "dismissed_by": null,
+      "dismissed_reason": null
+    }
+  ]
 }
