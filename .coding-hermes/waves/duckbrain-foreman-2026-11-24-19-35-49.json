@@ -1,0 +1,38 @@
+{
+  "tick_id": "duckbrain-foreman-2026-11-24-19-35-49",
+  "project": "duckbrain",
+  "workdir": "/home/kara/duckbrain",
+  "block": "HARDEN-DUCKBRAIN-001 (contract row hardening loop; feeder: REST-PK-UNIQUENESS-001) + INT-CI-045 (CI red: GAP-012 counts drift, foreman-inline)",
+  "mode": "serial (load 13.22/16 -> slots=2, WAVE_BUDGET=1 hard ceiling -> 1 worker)",
+  "worker_model": "glm-5.3-flash",
+  "worker_provider": "zai-glm",
+  "rows": [
+    {
+      "id": "REST-PK-UNIQUENESS-001",
+      "title": "Idempotency-Key replay on table writes (AC2) + pk-PATCH ambiguity refusal test (AC3)",
+      "worktree": "/home/kara/worktrees/duckbrain-REST-PK-UNIQUENESS-001",
+      "branch": "wt/REST-PK-UNIQUENESS-001",
+      "base_sha": "25386065   # record this: a base that moves orphans the branch (skill §2a)",
+      "brief_file": "/tmp/brief-REST-PK-UNIQUENESS-001-20261124.txt",
+      "gitreins_task": "created+started 2026-11-24",
+      "acceptance": [
+        "POST and /_transaction honour Idempotency-Key: identical replay returns stored first result, no new row; same key + different body -> 409 IDEMPOTENCY_CONFLICT; durable across restart",
+        ">=1 non-test hit for grep -rn Idempotency src/http src/storage; committed replay test under src/http/routes/",
+        "test: PATCH ?pk=eq.<v> updates exactly one row and 409s when predicate matches >1",
+        "npx vitest run src/http/routes/tables-write-uniqueness.test.ts green"
+      ]
+    },
+    {
+      "id": "INT-CI-045",
+      "title": "CI red on main: GAP-012 test-count manifest drift",
+      "owner": "foreman-inline (count-sync-guards doctrine: fresh collection + repo sync script)",
+      "worktree": "canonical main, post-merge",
+      "acceptance": [
+        "fresh pnpm vitest run > /tmp/vitest.out on the fixed tree",
+        "scripts/sync-agents-md-counts.sh /tmp/vitest.out updates test-counts.json; --check exits 0",
+        "fix commit pushed; CI run green on the assert step"
+      ]
+    }
+  ],
+  "written_before_dispatch": "2026-11-24T19:45Z"
+}
