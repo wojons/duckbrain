@@ -1243,6 +1243,54 @@ export function findRowByPk(
 }
 
 /**
+ * REST-PK-UNIQUENESS-001 AC3: how many PHYSICAL rows a `pk=eq.<v>` predicate
+ * matches. Versioned (current.jsonl) declarations fold every image into ONE
+ * logical row, so they are never ambiguous here; ambiguity is only possible
+ * in legacy tables whose data predates the duplicate-PK admission gate
+ * (AC1), where a rewrite-every-match PATCH/DELETE could fan out.
+ */
+export function countAmbiguousPkMatches(
+  nsDir: string,
+  declaration: TableDeclaration,
+  pkCol: TableColumn,
+  pkValue: string,
+): number {
+  if (foldsCurrentPartitions(declaration)) return 1;
+  const cmp = pkCompareValue(pkCol, pkValue);
+  let matches = 0;
+  for (const file of resolveTableFiles(nsDir, declaration)) {
+    let content: string;
+    try {
+      content = fs.readFileSync(file.absPath, "utf-8");
+    } catch {
+      continue;
+    }
+    for (const line of content.split("\n")) {
+      if (!line.trim()) continue;
+      let parsed: unknown;
+      try {
+        parsed = JSON.parse(line);
+      } catch {
+        continue;
+      }
+      const row =
+        declaration.format === "jsonl-positional" && Array.isArray(parsed)
+          ? Object.fromEntries(
+              declaration.columns.map((column, index) => [
+                column.name,
+                (parsed as unknown[])[index] ?? null,
+              ]),
+            )
+          : parsed;
+      if (typeof row !== "object" || row === null || Array.isArray(row))
+        continue;
+      if (cmp((row as Record<string, unknown>)[pkCol.name])) matches += 1;
+    }
+  }
+  return matches;
+}
+
+/**
  * Where a row physically lives: the file that carries it, the exact
  * serialized line (no trailing newline) and the row in API shape.
  *
