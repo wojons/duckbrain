@@ -136,6 +136,11 @@ import {
   updateTableRows,
   upsertTableRow,
 } from "../../tables/operations";
+import {
+  idempotencyBodyHash,
+  lookupIdempotentResult,
+  recordIdempotentResult,
+} from "../../tables/idempotency";
 
 /** Express 5 types named params as string | string[] (GAP-002 pattern). */
 function param(req: Request, name: string): string {
@@ -1450,6 +1455,30 @@ function createTableRoutes(): Router {
     asyncHandler(async (req: Request, res: Response) => {
       const ns = param(req, "ns");
       const body = req.body as { actions?: unknown } | undefined;
+      // REST-PK-UNIQUENESS-001 AC2: honour an `Idempotency-Key` on the
+      // envelope. An identical replay (same key + same canonical body)
+      // returns the STORED FIRST result without executing; the same key with
+      // a different body is a 409 IDEMPOTENCY_CONFLICT.
+      const rawKey = req.headers["idempotency-key"];
+      const idempotencyKey = typeof rawKey === "string" ? rawKey.trim() : "";
+      const idempotencyHash = idempotencyKey
+        ? idempotencyBodyHash(body ?? null)
+        : "";
+      if (idempotencyKey) {
+        const prior = lookupIdempotentResult(ns, "transaction", idempotencyKey);
+        if (prior) {
+          if (prior.body_hash !== idempotencyHash) {
+            throw new ApiError(
+              `Idempotency-Key '${idempotencyKey}' was already used with a different request body`,
+              409,
+              "IDEMPOTENCY_CONFLICT",
+            );
+          }
+          res.setHeader("Idempotent-Replayed", "true");
+          res.status(prior.status).json(prior.body);
+          return;
+        }
+      }
       const outcome = await runTableTransaction(
         ns,
         body?.actions,
@@ -1476,11 +1505,27 @@ function createTableRoutes(): Router {
         outcome.durability.configured,
         outcome.durability.achieved,
       );
-      res.json({
+      const transactionBody = {
         applied: outcome.applied,
         results: outcome.results,
         durability: outcome.durability.achieved,
-      });
+      };
+      // REST-PK-UNIQUENESS-001 AC2: a keyed transaction records its FIRST
+      // (committed) result durably before the ack — a retry with the same key
+      // and body replays it instead of re-executing the actions. Failures are
+      // deliberately NOT recorded: a rolled-back envelope re-runs nothing,
+      // and transient refusals (e.g. SERIALIZER_LOCKED) must stay replayable.
+      if (idempotencyKey) {
+        await recordIdempotentResult(
+          ns,
+          "transaction",
+          idempotencyKey,
+          idempotencyHash,
+          200,
+          transactionBody,
+        );
+      }
+      res.json(transactionBody);
     }),
   );
 
@@ -1609,6 +1654,33 @@ function createTableRoutes(): Router {
       const tableName = param(req, "table");
       resolveTableDeclaration(ns, tableName);
       const rawRows = parseInsertRows(req);
+      // REST-PK-UNIQUENESS-001 AC2: honour an `Idempotency-Key` on the insert.
+      // An identical replay returns the STORED FIRST result (no second row,
+      // no error); the same key with a different body is a 409
+      // IDEMPOTENCY_CONFLICT. The binding is durable
+      // (<namespacesRoot>/.duckbrain-table-idempotency/<ns>.jsonl, fsynced
+      // append) so a daemon restart keeps honouring it.
+      const rawKey = req.headers["idempotency-key"];
+      const idempotencyKey = typeof rawKey === "string" ? rawKey.trim() : "";
+      const idemScope = `insert:${tableName}`;
+      const idempotencyHash = idempotencyKey
+        ? idempotencyBodyHash(rawRows)
+        : "";
+      if (idempotencyKey) {
+        const prior = lookupIdempotentResult(ns, idemScope, idempotencyKey);
+        if (prior) {
+          if (prior.body_hash !== idempotencyHash) {
+            throw new ApiError(
+              `Idempotency-Key '${idempotencyKey}' was already used with a different request body`,
+              409,
+              "IDEMPOTENCY_CONFLICT",
+            );
+          }
+          res.setHeader("Idempotent-Replayed", "true");
+          res.status(prior.status).json(prior.body);
+          return;
+        }
+      }
       const { inserted, durability } = await insertTableRows(
         ns,
         tableName,
@@ -1617,6 +1689,17 @@ function createTableRoutes(): Router {
         (event) => auditRequestDenial(req, event),
       );
       setDurabilityHeaders(res, durability.configured, durability.achieved);
+      if (idempotencyKey) {
+        // fsync-before-ack: the binding is durable before the 201 leaves.
+        await recordIdempotentResult(
+          ns,
+          idemScope,
+          idempotencyKey,
+          idempotencyHash,
+          201,
+          { inserted },
+        );
+      }
       res.status(201).json({ inserted });
     }),
   );

@@ -45,6 +45,7 @@ import {
   findRowLineByPk,
   patchRowsByPk,
   deleteRowsByPk,
+  countAmbiguousPkMatches,
   resolveTableFiles,
   serializeRowLine,
   deriveSyntheticFilePath,
@@ -1047,6 +1048,25 @@ export async function updateTableRows(
   let patchOutcome: MutationOutcome | null = null;
   let location: RowLineLocation | null = null;
   let policyDenial: string | null = null;
+  // REST-PK-UNIQUENESS-001 AC3: a pk-addressed PATCH must touch EXACTLY ONE
+  // row. AC1 keeps duplicates out through the API, but legacy data written
+  // before that gate can still hold two physical rows with one pk — and the
+  // rewrite-every-match path below would answer {updated:2}. Refuse the
+  // ambiguous write instead of guessing which row the caller meant. Checked
+  // INSIDE the namespace write lock so the count cannot interleave with
+  // another writer. Versioned (current.jsonl) tables are never ambiguous
+  // (countAmbiguousPkMatches folds their images to one logical row).
+  if (countAmbiguousPkMatches(nsDir, declaration, col, value) > 1) {
+    releaseNamespaceWriteLock(lock);
+    throw new ApiError(
+      `pk=eq.${value} matches more than one row of '${declaration.name}'; ` +
+        `refusing the ambiguous PATCH (pk must address exactly one row). ` +
+        `Resolve the duplicate rows first — this table predates the ` +
+        `duplicate-PK refusal.`,
+      409,
+      "PK_AMBIGUOUS",
+    );
+  }
   try {
     const existing = findRowByPk(nsDir, declaration, col, value);
     if (existing !== null) {
@@ -1181,6 +1201,20 @@ export async function deleteTableRows(
       `Namespace '${ns}' is locked by another writer process`,
       503,
       "SERIALIZER_LOCKED",
+    );
+  }
+  // REST-PK-UNIQUENESS-001 AC3: same single-row guarantee as PATCH — a
+  // pk predicate matching >1 physical row (legacy data) is refused 409
+  // PK_AMBIGUOUS instead of deleting every match.
+  if (countAmbiguousPkMatches(nsDir, declaration, col, value) > 1) {
+    releaseNamespaceWriteLock(lock);
+    throw new ApiError(
+      `pk=eq.${value} matches more than one row of '${declaration.name}'; ` +
+        `refusing the ambiguous DELETE (pk must address exactly one row). ` +
+        `Resolve the duplicate rows first — this table predates the ` +
+        `duplicate-PK refusal.`,
+      409,
+      "PK_AMBIGUOUS",
     );
   }
   let removed = 0;
@@ -1440,6 +1474,21 @@ export async function upsertTableRow(
       `Namespace '${ns}' is locked by another writer process`,
       503,
       "SERIALIZER_LOCKED",
+    );
+  }
+  // REST-PK-UNIQUENESS-001 AC3: same single-row guarantee as PATCH/DELETE —
+  // a pk predicate matching >1 physical row (legacy data) is refused 409
+  // PK_AMBIGUOUS instead of replacing every match. The lock is released on
+  // the throw path; everything below runs under it.
+  if (countAmbiguousPkMatches(nsDir, declaration, col, value) > 1) {
+    releaseNamespaceWriteLock(lock);
+    throw new ApiError(
+      `pk=eq.${value} matches more than one row of '${declaration.name}'; ` +
+        `refusing the ambiguous PUT (pk must address exactly one row). ` +
+        `Resolve the duplicate rows first — this table predates the ` +
+        `duplicate-PK refusal.`,
+      409,
+      "PK_AMBIGUOUS",
     );
   }
 
