@@ -186,4 +186,41 @@ describe("REST-PK-UNIQUENESS-001 AC3: pk mutations touch exactly one row", () =>
     const gone = await request(app, "GET", `${dupe}?pk=eq.9`);
     expect(gone.body).toHaveLength(0);
   });
+
+  it("PUT /:table/:pk whose pk matches >1 row refuses 409 PK_AMBIGUOUS — never replaces both", async () => {
+    const app = createHttpServer({ authType: "none" });
+    const res = await request(app, "PUT", `${dupe}/1`, { name: "replaced" });
+    expect(res.status).toBe(409);
+    expect(res.body.code).toBe("PK_AMBIGUOUS");
+    expect(res.body.error).toContain("more than one row");
+
+    // NEITHER legacy row was replaced: the refusal is pre-write, all-or-nothing.
+    const rows = await request(app, "GET", `${dupe}?pk=eq.1`);
+    expect(rows.body).toHaveLength(2);
+    expect(rows.body.map((r: any) => r.name).sort()).toEqual([
+      "legacy-a",
+      "legacy-b",
+    ]);
+  });
+
+  it("PUT control: a unique pk still upserts exactly one row", async () => {
+    const app = createHttpServer({ authType: "none" });
+    // Replace branch: one existing row, one row after.
+    const updated = await request(app, "PUT", `${solo}/1`, {
+      name: "one-replaced",
+    });
+    expect(updated.status).toBe(200);
+    expect(updated.body.outcome).toBe("updated");
+    const rows = await request(app, "GET", `${solo}?pk=eq.1`);
+    expect(rows.body).toHaveLength(1);
+    expect(rows.body[0].name).toBe("one-replaced");
+
+    // Insert branch: fresh pk appends exactly one row.
+    const inserted = await request(app, "PUT", `${solo}/3`, { name: "three" });
+    expect(inserted.status).toBe(201);
+    expect(inserted.body.outcome).toBe("inserted");
+    const fresh = await request(app, "GET", `${solo}?pk=eq.3`);
+    expect(fresh.body).toHaveLength(1);
+    expect(fresh.body[0].name).toBe("three");
+  });
 });

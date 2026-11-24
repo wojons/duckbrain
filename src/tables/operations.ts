@@ -1476,6 +1476,21 @@ export async function upsertTableRow(
       "SERIALIZER_LOCKED",
     );
   }
+  // REST-PK-UNIQUENESS-001 AC3: same single-row guarantee as PATCH/DELETE —
+  // a pk predicate matching >1 physical row (legacy data) is refused 409
+  // PK_AMBIGUOUS instead of replacing every match. The lock is released on
+  // the throw path; everything below runs under it.
+  if (countAmbiguousPkMatches(nsDir, declaration, col, value) > 1) {
+    releaseNamespaceWriteLock(lock);
+    throw new ApiError(
+      `pk=eq.${value} matches more than one row of '${declaration.name}'; ` +
+        `refusing the ambiguous PUT (pk must address exactly one row). ` +
+        `Resolve the duplicate rows first — this table predates the ` +
+        `duplicate-PK refusal.`,
+      409,
+      "PK_AMBIGUOUS",
+    );
+  }
 
   let outcome: "inserted" | "updated" = "updated";
   let resultRow: Record<string, unknown> = {};
