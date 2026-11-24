@@ -758,6 +758,35 @@ curl -s "http://127.0.0.1:3199/api/memories?namespace=$NS&prefix=/k" -H "X-API-K
 curl -s "http://127.0.0.1:3199/api/memories?namespace=$NS&prefix=/k&historical=true" -H "X-API-Key: $K"       # both rows
 ```
 
+## @duckbrain/sdk — tarball consumer, verified 2026-11-23
+
+```bash
+# build the sdk dist, pack the real tarball (NOT the file: linkage of the example)
+npm run sdk:build
+cd packages/sdk && npm pack --pack-destination /tmp/df-sdk-<run>
+# npm pack packages/sdk from the repo ROOT fails with a bogus git ls-remote
+# (ssh://git@github.com/packages/sdk.git) — always pack from inside packages/sdk.
+```
+
+```ts
+import { DuckBrainApiError, NamespaceClient } from "@duckbrain/sdk";
+const c = new NamespaceClient({ baseUrl: "http://127.0.0.1:<port>", namespace: "<ns>" });
+await c.declare_table({ path: { table: "notes" }, body: { columns: [...], primary: "id", force: true } });
+await c.run_table_transaction({ body: { actions: [{ op: "insert", table: "<any>", row: {...} }] } });
+```
+
+- `createMemory` requires **key, domain, content**: a missing field comes back
+  as a typed `DuckBrainApiError` 400 naming the missing fields; the README
+  Coverage section does not state the contract (DOGFOOD-035).
+- Mutating ANY table is generic via `run_table_transaction` ({table, op} per
+  action) and declaring too (`declare_table` path param) — but the row-**select**
+  ops are fixture-bound (`list_notes`, `list_lane_scores`) and
+  `DuckBrainClientBase.call` is `protected`, so a tarball consumer currently
+  cannot READ a self-declared non-fixture table without hand-rolled fetch
+  (DOGFOOD-034).
+- The namespace prefix in the generated spec (`sdk_fixture`) is rewritten by the
+  client's `namespace` option (packages/sdk/src/runtime.ts); the table name is not.
+
 **Known rough edges at this HEAD (rows filed, do not re-file)**
 
 * `DELETE /api/memories/<non-uuid>` → **500** `{"error":"Invalid input: Invalid UUID"}` (no

@@ -1,0 +1,1 @@
+{"error":"Unknown declaration field(s): tables (expected columns, primary, format, policy, legacy, force)","code":"INVALID_DECLARATION"}

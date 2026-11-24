@@ -1,0 +1,5 @@
+CREATE_OK {"id":"0920b25b-e146-4b03-b38c-8cf4619fbf08","key":"/tarball/one","domain":"concept","content":"installed from the real tarball","attributes
+LIST_OK {"items":[{"id":"0920b25b-e146-4b03-b38c-8cf4619fbf08","key":"/tarball/one","domain":"concept","content":"installed from the real tarball","attributes":{"source":"dogfood-2026-11-23"},"timestamp":"202
+DECLARE_OK mytab
+LIST_TABLES_OK ["mytab"]
+API_ERROR_OK 404 NOT_FOUND POST http://127.0.0.1:20001/api/ns/tarball_df_01/tables/lane_scores → 404 NOT_FOUND: Table

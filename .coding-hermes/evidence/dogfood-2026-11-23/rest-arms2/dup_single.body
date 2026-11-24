@@ -1,0 +1,1 @@
+{"error":"Duplicate primary key for table 'events': id=1 already exists","code":"DUPLICATE_KEY","fields":{"pk":"1"}}

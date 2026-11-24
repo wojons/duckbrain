@@ -1,0 +1,1 @@
+{"error":"PATCH/DELETE require a primary key filter: ?pk=eq.<value>","code":"VALIDATION_ERROR"}

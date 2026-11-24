@@ -1,0 +1,25 @@
+{
+  "tick_id": "duckbrain-foreman-2026-11-23-22-14-19",
+  "project": "duckbrain",
+  "workdir": "/home/kara/duckbrain",
+  "block": "HARDEN-DUCKBRAIN-010 (contract row HARDEN-DUCKBRAIN-001 hardening loop, feeder: INT-CI-044)",
+  "mode": "serial (slots = max(1, min(6, 16 - ceil(15.47))) = 1; WAVE_BUDGET=2 is a ceiling, box is loaded)",
+  "worker_model": "glm-5.3-flash",
+  "worker_provider": "zai-glm",
+  "rows": [
+    {
+      "id": "INT-CI-044",
+      "title": "CI red on main: TS18048 x14 in src/http/routes/memories-content-persistence-dbhttp001.test.ts",
+      "worktree": "/home/kara/worktrees/duckbrain-INT-CI-044",
+      "branch": "wt/INT-CI-044",
+      "base_sha": "6b3d6d1f",
+      "brief_file": "/tmp/brief-INT-CI-044-20261123-2214.txt",
+      "acceptance": [
+        "pnpm tsc --noEmit exits 0 in the worktree",
+        "memories-content-persistence-dbhttp001.test.ts guards/asserts row lookups; DB-HTTP-001 content-persist behavior unchanged",
+        "targeted test file passes in the worktree"
+      ]
+    }
+  ],
+  "written_before_dispatch": "2026-11-23T22:14Z"
+}

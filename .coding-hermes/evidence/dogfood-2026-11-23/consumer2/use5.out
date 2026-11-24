@@ -1,0 +1,2 @@
+TXN_INSERT_OK mytab ids 1,2
+READ_NOTES_ERR DuckBrainApiError GET http://127.0.0.1:20001/api/ns/tarball_df_01/tables/notes?select=*&order=id.a

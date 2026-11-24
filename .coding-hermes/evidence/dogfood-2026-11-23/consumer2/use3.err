@@ -1,0 +1,23 @@
+file:///tmp/duckbrain-dogfood-df-2026-11-23-OlxJhTFN/consumer2/node_modules/@duckbrain/sdk/dist/runtime.js:135
+        throw new DuckBrainApiError({
+              ^
+
+DuckBrainApiError: POST http://127.0.0.1:20001/api/memories?namespace=tarball_df_01 → 400 VALIDATION_ERROR: Missing required fields: key, domain, content
+    at NamespaceClient.raise (file:///tmp/duckbrain-dogfood-df-2026-11-23-OlxJhTFN/consumer2/node_modules/@duckbrain/sdk/dist/runtime.js:135:15)
+    at process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+    at async NamespaceClient.call (file:///tmp/duckbrain-dogfood-df-2026-11-23-OlxJhTFN/consumer2/node_modules/@duckbrain/sdk/dist/runtime.js:36:24)
+    at async file:///tmp/duckbrain-dogfood-df-2026-11-23-OlxJhTFN/consumer2/use.mjs:3:13 {
+  operationId: 'createMemory',
+  method: 'post',
+  url: 'http://127.0.0.1:20001/api/memories?namespace=tarball_df_01',
+  status: 400,
+  reason: 'Missing required fields: key, domain, content',
+  code: 'VALIDATION_ERROR',
+  fields: undefined,
+  body: {
+    error: 'Missing required fields: key, domain, content',
+    code: 'VALIDATION_ERROR'
+  }
+}
+
+Node.js v22.22.3

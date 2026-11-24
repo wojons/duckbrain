@@ -1,0 +1,18 @@
+HTTP/1.1 201 Created
+X-Powered-By: Express
+Access-Control-Allow-Origin: *
+Access-Control-Allow-Methods: GET, POST, PUT, PATCH, DELETE, OPTIONS
+Access-Control-Allow-Headers: Content-Type, Authorization, X-API-Key, Last-Event-ID, Accept, Range
+Access-Control-Expose-Headers: X-Durability, X-Durability-Configured, X-Durability-Degraded, X-Total-Count, Content-Range, X-RateLimit-Limit, X-RateLimit-Remaining
+Access-Control-Max-Age: 600
+X-RateLimit-Limit: 100
+X-RateLimit-Remaining: 97
+X-Durability: buffered
+X-Durability-Configured: buffered
+Content-Type: application/json; charset=utf-8
+Content-Length: 14
+ETag: W/"e-CQnNSoC8+B5PwyBD3vBP6ZzbSJc"
+Date: Mon, 23 Nov 2026 22:27:58 GMT
+Connection: keep-alive
+Keep-Alive: timeout=5
+

@@ -1,0 +1,1 @@
+[{"id":1,"name":"widget","qty":5,"active":true,"meta":{"color":"red"}},{"id":2,"name":"gadget","qty":99,"active":false,"meta":{"color":"patched"}},{"id":10,"name":"lister","qty":8,"active":true,"meta":{"tags":["x","y"],"nested":{"a":1}}}]

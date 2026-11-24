@@ -1,0 +1,52 @@
+client → http://127.0.0.1:20000 namespace=sdk_dogfood_20261123
+declare_table → {
+  namespace: 'sdk_dogfood_20261123',
+  table: 'notes',
+  path: '/tmp/duckbrain-dogfood-df-2026-11-23-OlxJhTFN/ns/sdk_dogfood_20261123/schema.json',
+  format: 'schema.json',
+  replacedExisting: false,
+  declaration: {
+    name: 'notes',
+    format: 'jsonl-objects',
+    columns: [ [Object], [Object], [Object] ],
+    primary: 'id',
+    glob: 'tables/notes/current.jsonl',
+    declaredKeyColumns: [ 'id' ],
+    schemaVersion: 1,
+    source: 'schema.json'
+  }
+}
+list_tables → [ 'notes' ]
+insert_notes → { inserted: 2 }
+list_notes (order=score.desc, score=gte.1) → [
+  { id: 'b', title: 'second', score: 2.5 },
+  { id: 'a', title: 'first', score: 1.5 }
+]
+upsert_notes → {
+  outcome: 'updated',
+  inserted: false,
+  row: { id: 'a', title: 'first (upserted)', score: 3.5 }
+}
+X-Total-Count (count=exact) → 2
+createMemory → {
+  id: 'be84dc74-7b61-4363-aa7e-0443936ee77e',
+  key: '/sdk/quickstart/hello'
+}
+getMemoryByKey → written through the generated client
+listMemories → { total: 1, keys: [ '/sdk/quickstart/hello' ] }
+updateMemory → {
+  id: 'fc799f54-ca6d-47da-9d92-22f29781521b',
+  content: 'updated through the generated client'
+}
+deleteMemory → 204 no content
+streamEvents → {
+  type: 'connected',
+  timestamp: '2026-11-23T22:27:12.609Z',
+  namespace: 'sdk_dogfood_20261123'
+}
+DuckBrainApiError → {
+  status: 400,
+  code: 'VALIDATION_ERROR',
+  reason: "Unknown filter column 'missing_column' (table 'notes' declares: id, title, score)",
+  message: "GET http://127.0.0.1:20000/api/ns/sdk_dogfood_20261123/tables/notes?missing_column=eq.1 → 400 VALIDATION_ERROR: Unknown filter column 'missing_column' (table 'notes' declares: id, title, score)"
+}
