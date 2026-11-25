@@ -79,3 +79,4 @@ stray-archives/
 .stryker-tmp/
 .gitreins/verdicts/
 metrics/
+.gitreins/review-state.json
