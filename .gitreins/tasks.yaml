@@ -3660,3 +3660,14 @@ tasks:
     test-counts.json matches live suite'' step.'
   status: in_progress
   created_at: '2026-11-24T20:18:42.939190+00:00'
+- id: OPS-016
+  title: 'Canonical checkout: commit-or-restore 22 uncommitted .gitreins/history deletions
+    + stray artifacts'
+  criteria:
+  - Canonical checkout /home/kara/duckbrain carries no uncommitted changes under .gitreins/history/2026-08-17
+    or stray artifacts (.gitreins/review-state.json mod, .gitreins/review-state.lock,
+    use.out, docs/dogfood/diagnostics-2026-11-23-sdk-seam.md); git status prints nothing
+    for those paths; resolution commits are on origin/main with the direction (deletions
+    kept vs restored) and writer attribution named in the commit messages
+  status: in_progress
+  created_at: '2026-11-25T04:16:52.102035+00:00'

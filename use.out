@@ -1,0 +1,14 @@
+import { createDuckBrainClient, DuckBrainApiError } from '@duckbrain/sdk';
+const base = process.env.DG_BASE || 'http://127.0.0.1:20001';
+const c = createDuckBrainClient({ baseUrl: base });
+const mem = await c.memories.create({ namespace: 'tarball_df_01', key: '/tarball/one', content: 'installed from the real tarball' });
+console.log('CREATE_OK', mem && (mem.key || mem.id || JSON.stringify(mem).slice(0, 120)));
+const list = await c.memories.list({ namespace: 'tarball_df_01', limit: 5 });
+console.log('LIST_OK', list && (list.total ?? list.length ?? 'shape?'), JSON.stringify((list.items || list.keys || list || [])).slice(0, 160));
+try {
+  await c.tables?.listRows?.('tarball_df_01', 'not_there');
+  console.log('UNKNOWN_TABLE_NO_ERROR');
+} catch (e) {
+  if (e instanceof DuckBrainApiError) console.log('API_ERROR_OK', e.status, e.code);
+  else console.log('OTHER_ERROR', e.constructor.name, String(e).slice(0, 120));
+}
