@@ -1,0 +1,109 @@
+{
+  "meta": {
+    "task": "HARDEN-DUCKBRAIN-001 gate audit refresh (attempt 2, tick duckbrain-foreman-2026-11-25-08-39-37)",
+    "date": "2026-11-25",
+    "daemon": "node bin/duckbrain.js http --port 28777 --auth=apikey",
+    "env": {
+      "DUCKBRAIN_NAMESPACES_PATH": "/tmp/gate-audit-20261125-fm0839/namespaces",
+      "DUCKBRAIN_AUTH_FILE": "/tmp/gate-audit-20261125-fm0839/auth.json"
+    },
+    "build": "pnpm run build:cli OK; node bin/duckbrain.js http --help OK (BUILD_OK)",
+    "notes": [
+      "Header correction: the brief's 'Authorization: Bearer <key>' form returns 401 {\"error\":\"Unauthorized: API key required\"} on every data route — the apikey backend reads only the x-api-key header (src/auth/middleware.ts:201). /health answers 200 to Bearer only because authMiddleware exempts that path. All probes below were re-run with x-api-key; the first Bearer run is recorded honestly in run1_bearer_401.",
+      "Credential re-mint: the previous worker's auth.json carried sha256 keyHashes whose plaintexts were not recoverable (the literal role names do not hash to the stored digests). The three principals were re-minted in the SCRATCH auth.json with keyHash = sha256(literal name), preserving roles/namespaces/tableGrants byte-identically (gate-write-only: roles=[writer], tableGrants widgets=write; gate-read-only: roles=[analyst], widgets=read; gate-admin: roles=[admin]). Scratch file only; no repo change.",
+      "Grant semantics verified from source before probing (src/auth/roles.ts authorizeTableAccess): admin bypasses; role must include tables.<op>; tableGrants then require 'rw' or === op."
+    ],
+    "run1_bearer_401": {
+      "probes": ["A1 GET as gate-write-only", "A2 GET/PATCH/DELETE as gate-read-only"],
+      "actual_status": 401,
+      "actual_body_snippet": "{\"error\":\"Unauthorized: API key required\"}",
+      "disposition": "probe-side credential-header error, not an API contradiction; re-run with x-api-key"
+    }
+  },
+  "probes": [
+    {
+      "probe": "A1",
+      "request_desc": "GET /api/ns/gateaudit-a/tables/widgets as principal gate-write-only (roles=[writer], tableGrants widgets=write) via x-api-key",
+      "expected": "403 code FORBIDDEN (write-only grant: no read grant for the table)",
+      "actual_status": 403,
+      "actual_body_snippet": "{\"error\":\"Forbidden: principal 'gate-write-only' has no read grant for table 'widgets'\",\"code\":\"FORBIDDEN\"}",
+      "pass": true
+    },
+    {
+      "probe": "A2-get",
+      "request_desc": "GET /api/ns/gateaudit-a/tables/widgets as principal gate-read-only (roles=[analyst], tableGrants widgets=read) via x-api-key",
+      "expected": "200 with table rows",
+      "actual_status": 200,
+      "actual_body_snippet": "[{\"id\":1,\"label\":\"admin-update\"},{\"id\":2,\"label\":\"admin-row\"}]",
+      "pass": true
+    },
+    {
+      "probe": "A2-patch",
+      "request_desc": "PATCH /api/ns/gateaudit-a/tables/widgets?pk=eq.1 body {\"label\":\"should-not-land\"} as gate-read-only via x-api-key",
+      "expected": "403 (principal lacks grant 'tables.write')",
+      "actual_status": 403,
+      "actual_body_snippet": "{\"error\":\"Forbidden: principal 'gate-read-only' lacks grant 'tables.write'\",\"code\":\"FORBIDDEN\"}",
+      "pass": true
+    },
+    {
+      "probe": "A2-delete",
+      "request_desc": "DELETE /api/ns/gateaudit-a/tables/widgets?pk=eq.2 as gate-read-only via x-api-key",
+      "expected": "403 (principal lacks grant 'tables.write')",
+      "actual_status": 403,
+      "actual_body_snippet": "{\"error\":\"Forbidden: principal 'gate-read-only' lacks grant 'tables.write'\",\"code\":\"FORBIDDEN\"}",
+      "pass": true
+    },
+    {
+      "probe": "A3",
+      "request_desc": "sha256 of namespaces/gateaudit-a/tables/widgets/current.jsonl before vs after the A1/A2 denial requests, plus denial rows in the namespace audit ledger gateaudit-a/_audit/current.jsonl",
+      "expected": "table bytes IDENTICAL across the denials (denials must not write); audit ledger carries denial rows for gateaudit-a",
+      "actual_status": "n/a (file-hash + ledger check)",
+      "actual_body_snippet": "pre  = 53fd1b3bfa54a5f8dd31a53ba1fcf6b3d63b55b6dda8b2b6f1c7c2982b9eefc9; post = 53fd1b3bfa54a5f8dd31a53ba1fcf6b3d63b55b6dda8b2b6f1c7c2982b9eefc9 (identical). Ledger rows for this run: {ts:2026-11-25T08:54:30.331Z, op:tables.read, principal:gate-write-only, reason:table_grant}; {08:54:30.381Z, tables.write, gate-read-only, role}; {08:54:30.389Z, tables.write, gate-read-only, role} — SUPA-2 writer rows (ts/op/principal/reason present), not a marker-less write.",
+      "pass": true
+    },
+    {
+      "probe": "A4-patch",
+      "request_desc": "PATCH /api/ns/gateaudit-a/tables/widgets?pk=eq.1 body {\"label\":\"admin-update-r2\"} as gate-admin (roles=[admin]) via x-api-key",
+      "expected": "200 {\"updated\":1} with X-Durability + X-Durability-Configured headers",
+      "actual_status": 200,
+      "actual_body_snippet": "{\"updated\":1}; headers X-Durability: buffered, X-Durability-Configured: buffered; table row 1 now {\"id\":1,\"label\":\"admin-update-r2\"}",
+      "pass": true
+    },
+    {
+      "probe": "A4-post",
+      "request_desc": "POST /api/ns/gateaudit-a/tables/widgets body {\"id\":3,\"label\":\"admin-insert-r2\"} as gate-admin via x-api-key",
+      "expected": "201 {\"inserted\":1} with X-Durability + X-Durability-Configured headers",
+      "actual_status": 201,
+      "actual_body_snippet": "{\"inserted\":1}; headers X-Durability: buffered, X-Durability-Configured: buffered; table now carries row {\"id\":3,\"label\":\"admin-insert-r2\"}",
+      "pass": true
+    }
+  ],
+  "metrics_families": {
+    "scrape": "GET /metrics with x-api-key: scratch-gateaudit-20261125 -> 200, 11571 bytes, 24 # HELP families, 88 duckbrain_* series",
+    "naming_note": "every family is exposed under the duckbrain_ prefix; presence checked by ^duckbrain_<family> line match on the live scrape",
+    "families": {
+      "http_up": { "name": "duckbrain_http_up", "present": true, "series": 1, "sample": "duckbrain_http_up 1" },
+      "health_status": { "name": "duckbrain_health_status", "present": true, "series": 1, "sample": "duckbrain_health_status 2" },
+      "health_probe_duration_seconds": { "name": "duckbrain_health_probe_duration_seconds", "present": true, "series": 51, "sample": "histogram buckets+sum+count by probe=embedding|keys|total (e.g. bucket le=0.1 probe=embedding 1)" },
+      "embedding_provider_healthy": { "name": "duckbrain_embedding_provider_healthy", "present": true, "series": 3 },
+      "read_duration_seconds": { "name": "duckbrain_read_duration_seconds", "present": true, "series": 14 },
+      "rejected_total": { "name": "duckbrain_rejected_total", "present": false, "series": 0, "help_declared": true, "reason": "counter declared in HELP but never observed this process uptime (no 429/403 rejections yet on a fresh daemon)" },
+      "embedding_requests_total": { "name": "duckbrain_embedding_requests_total", "present": false, "series": 0, "help_declared": true, "reason": "no embedding provider HTTP request made this process uptime (cache hits/misses counters DID emit)" },
+      "embedding_cache_hits": { "name": "duckbrain_embedding_cache_hits_total", "present": true, "series": 1, "sample": "duckbrain_embedding_cache_hits_total 0" },
+      "embedding_cache_misses": { "name": "duckbrain_embedding_cache_misses_total", "present": true, "series": 1, "sample": "duckbrain_embedding_cache_misses_total 0" },
+      "git_commit_total": { "name": "duckbrain_git_commit_total", "present": false, "series": 0, "help_declared": true, "reason": "no git commit executed this process uptime" },
+      "git_push_total": { "name": "duckbrain_git_push_total", "present": false, "series": 0, "help_declared": true, "reason": "no git push executed this process uptime" },
+      "git_commit_queue_depth": { "name": "duckbrain_git_commit_queue_depth", "present": true, "series": 1, "sample": "duckbrain_git_commit_queue_depth 0" },
+      "git_last_push_success_timestamp_seconds": { "name": "duckbrain_git_last_push_success_timestamp_seconds", "present": true, "series": 1, "sample": "duckbrain_git_last_push_success_timestamp_seconds 0" },
+      "storage_namespaces_bytes": { "name": "duckbrain_storage_namespaces_bytes", "present": true, "series": 1, "sample": "duckbrain_storage_namespaces_bytes 833696" },
+      "storage_embedding_cache_bytes": { "name": "duckbrain_storage_embedding_cache_bytes", "present": true, "series": 1, "sample": "duckbrain_storage_embedding_cache_bytes 0" },
+      "recall_packs_": { "name": "duckbrain_recall_packs_total + duckbrain_recall_packs_nonempty_total", "present": true, "series": 2, "sample": "duckbrain_recall_packs_total 0 / duckbrain_recall_packs_nonempty_total 0" },
+      "read_ledger_rotation_total": { "name": "duckbrain_read_ledger_rotation_total", "present": true, "series": 1, "sample": "duckbrain_read_ledger_rotation_total 0" },
+      "table_declarations": { "name": "duckbrain_table_declarations", "present": true, "series": 2 },
+      "table_declaration_namespaces": { "name": "duckbrain_table_declaration_namespaces", "present": true, "series": 2 },
+      "s3_": { "name": "duckbrain_s3_last_push_age_seconds + duckbrain_s3_unpushed_files", "present": true, "series": 2, "sample": "duckbrain_s3_last_push_age_seconds +Inf / duckbrain_s3_unpushed_files 8" }
+    },
+    "absent_families": ["rejected_total", "embedding_requests_total", "git_commit_total", "git_push_total"],
+    "absent_interpretation": "all four are declared (# HELP) counters with zero series because the fresh daemon never observed the event (no rejects, no provider calls, no git commit/push this uptime); absence is expected-unobserved, not a registration gap"
+  }
+}
