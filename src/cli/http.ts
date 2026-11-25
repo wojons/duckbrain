@@ -872,7 +872,13 @@ export function createHttpServer(options: HttpServerOptions = {}): Express {
     "/api/ns/:ns/tables",
     express.text({ type: "application/x-ndjson", limit: "1mb" }),
   );
-  app.use(express.json());
+  // JSON body limit: express's 100kb default 500s (PayloadTooLargeError)
+  // scheduler fleet-event replays — /fleet/events payloads run ~97KB of text
+  // and serialize past the default once escaped, so the sync spool burns
+  // retries until the 50-strike prune drops the event (proven 2026-11-25,
+  // events 1428483/1433615). 10mb covers the largest observed replays with
+  // headroom; auth + rate limit still gate the write path.
+  app.use(express.json({ limit: "10mb" }));
 
   // Health check — registered ABOVE, with /metrics and before the rate limiter,
   // so a throttled caller can never make a healthy daemon look dead.
