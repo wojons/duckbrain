@@ -1,0 +1,20 @@
+{
+  "tick_id": "duckbrain-foreman-2026-11-25-15-43-56",
+  "block": "HARDEN-DUCKBRAIN (contract row HARDEN-DUCKBRAIN-001)",
+  "block_drive": "top DRIVE = HARDEN-DUCKBRAIN-010 family, 9/10 done, remaining ready row = contract row HARDEN-DUCKBRAIN-001 (P0 hardening loop)",
+  "path": "serial-fallback",
+  "serial_reason": "slots = max(1, min(6, 16 - ceil(loadavg 27.09))) = 1; box loaded (load 27.09/16c). Host load is not an idle reason: 1 worker equivalent — this tick is a foreman-direct land-and-prove of an already-written stranded diff (board note forbids re-dispatching a fresh worker into this worktree).",
+  "wave_budget": 3,
+  "rows": [
+    {
+      "id": "INT-CI-041",
+      "priority": "P1",
+      "status_before": "pending",
+      "worktree": "/home/kara/worktrees/duckbrain-INT-CI-041",
+      "branch": "wt/INT-CI-041",
+      "base": "69446e7f (origin/main tip)",
+      "mode": "foreman-direct: commit the stranded 59-line teardown diff in place (board directive 2026-11-20/11-22: DO NOT re-dispatch into fresh worktree), run AC proof (3 consecutive full npx vitest run, 0 failed suites, 2520 tests), gitreins judge, merge, push",
+      "dispatch_model": "none (foreman-direct mechanical: existing diff + gates; worker dispatch explicitly contradicted by board note)"
+    }
+  ]
+}
