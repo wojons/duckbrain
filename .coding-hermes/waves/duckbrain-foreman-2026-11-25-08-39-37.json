@@ -1,0 +1,44 @@
+{
+  "wave_id": "duckbrain-foreman-2026-11-25-08-39-37",
+  "tick": "duckbrain-foreman-2026-11-25-08-39-37",
+  "block": "HARDEN-DUCKBRAIN (contract row HARDEN-DUCKBRAIN-001)",
+  "block_key": "HARDEN-DUCKBRAIN-010",
+  "composed_at": "2026-11-25T08:50:00-05:00",
+  "wave_kind": "serial-fallback",
+  "serial_reason": "Block offers exactly ONE ready row (contract loop driver HARDEN-DUCKBRAIN-001); HARDEN-DUCKBRAIN-002/-007 are owner-gated blocked rows. slots=3 (16 cores, load 12.23) is irrelevant — no second independent row exists in the block.",
+  "wave_budget": 7,
+  "slots_computed": 3,
+  "workers": [
+    {
+      "row": "HARDEN-DUCKBRAIN-001",
+      "task": "gate audit refresh 2026-11-25: gate (a) four boundary defect probes on scratch daemon, gate (b) metric family presence, gate (c) open P0/P1 disposition census vs 2026-11-23 baseline",
+      "worktree": "/home/kara/worktrees/duckbrain-HARDEN-DUCKBRAIN-001",
+      "branch": "wt/HARDEN-DUCKBRAIN-001",
+      "base_sha": "dd13768d",
+      "brief_file": "/tmp/gate-audit-brief-20261125-fm0839.txt",
+      "model": "glm-5.3-flash",
+      "provider": "zai-glm",
+      "gitreins_task": "HARDEN-DUCKBRAIN-001",
+      "expected_artifacts": [
+        ".coding-hermes/board/evidence-HARDEN-DUCKBRAIN-001-20261125-gatec-census.json",
+        ".coding-hermes/board/evidence-HARDEN-DUCKBRAIN-001-20261125-gateab-probes.json",
+        ".coding-hermes/board/evidence-HARDEN-DUCKBRAIN-001-20261125-gateab-probes.md"
+      ]
+    }
+  ],
+  "merged": [
+    {
+      "row": "HARDEN-DUCKBRAIN-001",
+      "implementation_commit": "13c49d35",
+      "merge_commit": "f5811bfb",
+      "pushed": true,
+      "parity": 0,
+      "judge_run": "8b7e2a11",
+      "verdict_id": "d9c613b0",
+      "verdict_passed": true,
+      "ci_exact_head_run": "45581301503",
+      "ci_conclusion": "success"
+    }
+  ],
+  "finished_at": "2026-11-25T09:12:00Z"
+}

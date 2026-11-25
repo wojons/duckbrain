@@ -3672,3 +3672,19 @@ tasks:
   status: complete
   created_at: '2026-11-25T04:16:52.102035+00:00'
   completed_at: '2026-11-25T05:03:19.331350+00:00'
+- id: HARDEN-DUCKBRAIN-001
+  title: hardening-loop gate audit refresh 2026-11-25 (gates a/b/c evidence)
+  criteria:
+  - 'Working tree adds .coding-hermes/board/evidence-HARDEN-DUCKBRAIN-001-20261125-gatec-census.json
+    whose counts.total equals the exact number of tasks.jsonl rows with status !=
+    complete and priority matching ^P[01]$, every census row classified parked_owner_gated|in_flight|owner_directive_recorded|dispatchable_backlog
+    strictly from that row''s own fields, and a companion gate-a/b probe artifact
+    recording, against a scratch daemon (non-3000 port, own DUCKBRAIN_NAMESPACES_PATH
+    and --auth-file): write-only table grant GET=403 FORBIDDEN; read-only grant GET=200
+    with PATCH=403 and DELETE=403 and a byte-identical table file plus denial audit
+    rows; valid PATCH=200 with X-Durability headers; plus the presence of the hardening
+    metric families on the same scratch daemon /metrics. Diff touches only new evidence
+    artifacts and board closeout files; no source change, no production namespaces/
+    or :3000 contact.'
+  status: in_progress
+  created_at: '2026-11-25T08:43:36.825657+00:00'
