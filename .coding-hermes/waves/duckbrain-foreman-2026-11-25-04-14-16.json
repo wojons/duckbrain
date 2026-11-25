@@ -1,0 +1,29 @@
+{
+  "tick": "duckbrain-foreman-2026-11-25-04-14-16",
+  "block": "OPS-016",
+  "wave_size": 1,
+  "path": "serial (WAVE_BUDGET=1; block has 1 pending row; resolution work is canonical-checkout-local and unrepresentable in a fresh worktree)",
+  "tasks": [
+    {
+      "task_id": "OPS-016",
+      "worktree": "/home/kara/duckbrain",
+      "branch": "main",
+      "dispatch": "foreman-direct (attribution + path-scoped commits; tree-local)",
+      "commits": [
+        "6a690451 deletions kept (22 stale 2026-08-17 run dirs)",
+        "25103341 stray artifacts landed",
+        "07cafdec judge-run residue sweep (f1bdf5ea, disclosed regrowth)",
+        "777e3a75 durable untrack: .gitreins/history + review-state churn paths"
+      ],
+      "verdicts": {
+        "ff60552a": "tier2 PASS (graded c56ae2e6)",
+        "d97db56a": "FAIL on pre-mitigation state (07cafdec unpushed + drift regrown) — superseded by mitigation",
+        "ad47ee35": "infrastructure fail (z.ai 429)",
+        "63a84421": "PASS @ 777e3a75 (final, deepseek-flash lane)"
+      },
+      "board": ".coding-hermes/board/tasks.jsonl",
+      "evidence_run": "63a84421"
+    }
+  ],
+  "result": "blocked:OPS-016 complete; block done 16/16"
+}

@@ -80,3 +80,5 @@ stray-archives/
 .gitreins/verdicts/
 metrics/
 .gitreins/review-state.json
+.gitreins/review-state.recovery-required
+.gitreins/review-state.json.corrupt-*

@@ -3669,5 +3669,6 @@ tasks:
     use.out, docs/dogfood/diagnostics-2026-11-23-sdk-seam.md); git status prints nothing
     for those paths; resolution commits are on origin/main with the direction (deletions
     kept vs restored) and writer attribution named in the commit messages
-  status: in_progress
+  status: complete
   created_at: '2026-11-25T04:16:52.102035+00:00'
+  completed_at: '2026-11-25T05:03:19.331350+00:00'
