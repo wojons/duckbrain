@@ -163,6 +163,7 @@ describe("SURFACE-MCP-DATA-001 AC1: tools over shared implementations", () => {
     expect(names).toEqual([
       "table_list",
       "tables_declare",
+      "tables_alter",
       "table_insert",
       "table_select",
       "table_update",

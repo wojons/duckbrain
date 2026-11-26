@@ -701,7 +701,8 @@ describe("DB-SUPA-3: generic table→REST layer", () => {
     // namespace-level mutation envelope.
     // SDK-PARITY-001 extended the generated document to the routes it had not
     // described yet: the rest of the memory resource, the SSE feed, and the
-    // declared-table registry + declaration sub-resource.
+    // declared-table registry + declaration sub-resource. DDL-EVOLVE-001 added
+    // the evolution sub-resource (`{table}/alter`) to the same document.
     expect(Object.keys(res.body.paths).sort()).toEqual([
       "/api/events/{namespace}",
       "/api/memories",
@@ -712,6 +713,7 @@ describe("DB-SUPA-3: generic table→REST layer", () => {
       `/api/ns/${FIXTURE_NS}/tables/lane_scores`,
       `/api/ns/${FIXTURE_NS}/tables/widgets`,
       `/api/ns/${FIXTURE_NS}/tables/widgets/{pk}`,
+      `/api/ns/${FIXTURE_NS}/tables/{table}/alter`,
       `/api/ns/${FIXTURE_NS}/tables/{table}/declare`,
     ]);
     const widgets = res.body.paths[`/api/ns/${FIXTURE_NS}/tables/widgets`];

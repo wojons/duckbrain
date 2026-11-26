@@ -85,6 +85,8 @@ export interface TableDeclarationRequest {
   force?: boolean;
 }
 
+export type TableAlterRequest = Record<string, unknown>;
+
 // ---------------------------------------------------------------------------
 // Operations
 // ---------------------------------------------------------------------------
@@ -280,6 +282,14 @@ export interface UpsertNotesArgs {
   body: { id: string; title: string; score: number; created: string };
 }
 
+/** Evolve a declared table (addColumn / retypeColumn) */
+export interface AlterTableArgs {
+  path: {
+    table: string;
+  };
+  body: TableAlterRequest;
+}
+
 /** Create or replace a table declaration */
 export interface DeclareTableArgs {
   path: {
@@ -401,6 +411,12 @@ export type Specs = {
     args: UpsertNotesArgs;
     response: void;
   };
+  alter_table: {
+    method: "post";
+    path: "/api/ns/sdk_fixture/tables/{table}/alter";
+    args: AlterTableArgs;
+    response: void;
+  };
   declare_table: {
     method: "post";
     path: "/api/ns/sdk_fixture/tables/{table}/declare";
@@ -436,6 +452,7 @@ export const operations = {
   update_notes: { method: "patch", path: "/api/ns/sdk_fixture/tables/notes" },
   delete_notes: { method: "delete", path: "/api/ns/sdk_fixture/tables/notes" },
   upsert_notes: { method: "put", path: "/api/ns/sdk_fixture/tables/notes/{pk}" },
+  alter_table: { method: "post", path: "/api/ns/sdk_fixture/tables/{table}/alter" },
   declare_table: { method: "post", path: "/api/ns/sdk_fixture/tables/{table}/declare" },
 } as const;
 
@@ -541,6 +558,11 @@ export class NamespaceClient extends DuckBrainClientBase<Specs> {
   /** Insert or replace one row of 'notes' by primary key */
   upsert_notes(args?: Specs["upsert_notes"]["args"]): Promise<Specs["upsert_notes"]["response"]> {
     return this.call("upsert_notes", args);
+  }
+
+  /** Evolve a declared table (addColumn / retypeColumn) */
+  alter_table(args?: Specs["alter_table"]["args"]): Promise<Specs["alter_table"]["response"]> {
+    return this.call("alter_table", args);
   }
 
   /** Create or replace a table declaration */

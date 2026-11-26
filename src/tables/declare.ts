@@ -96,11 +96,23 @@ const NAME_PATTERN = /^[a-z0-9_-]+$/;
  */
 export class TableDeclareError extends Error {
   readonly kind: "usage" | "refusal";
+  /**
+   * Machine-readable refusal code (DDL-EVOLVE-001). `refusal` errors default to
+   * DECLARATION_REFUSED on the HTTP surface; a refusal that names a specific
+   * protocol condition carries its own code (EVOLUTION_REQUIRED) so all three
+   * surfaces answer with the same token instead of prose alone.
+   */
+  readonly code?: string;
 
-  constructor(message: string, kind: "usage" | "refusal" = "usage") {
+  constructor(
+    message: string,
+    kind: "usage" | "refusal" = "usage",
+    code?: string,
+  ) {
     super(message);
     this.name = "TableDeclareError";
     this.kind = kind;
+    this.code = code;
   }
 }
 
@@ -127,6 +139,23 @@ function readTextOrNull(file: string): string | null {
 
 function sha256Hex(text: string): string {
   return crypto.createHash("sha256").update(text).digest("hex");
+}
+
+/**
+ * Number of data rows a declared table currently holds (DDL-EVOLVE-001 force
+ * guard). The declaration's storage path is namespace-relative; a missing or
+ * unreadable file counts as ZERO rows — the force path is only dangerous when
+ * there is live row data to strand.
+ */
+function populatedRowCount(nsDir: string, storagePath: string): number {
+  try {
+    return fs
+      .readFileSync(path.join(nsDir, storagePath), "utf-8")
+      .split("\n")
+      .filter((line) => line.trim().length > 0).length;
+  } catch {
+    return 0;
+  }
 }
 
 function writeJsonAtomic(file: string, value: unknown): void {
@@ -334,10 +363,26 @@ async function declareIntoSchemaJson(options: {
     }
 
     const existing = document.tables[table];
-    if (existing && !force && !sameCanonicalTable(existing, candidate)) {
-      refuse(
-        `table '${table}' is already declared in ${schemaFile} with a different contract. Re-run with --force to replace it.`,
-      );
+    if (existing && !sameCanonicalTable(existing, candidate)) {
+      if (force) {
+        // DDL-EVOLVE-001: --force used to silently reshape a live table — the
+        // declaration switched, the rows kept the old bytes, the API served
+        // only the new columns and PATCH of an old row 400'd forever. A
+        // POPULATED table is therefore refused: evolution must go through the
+        // explicit ops (addColumn / retypeColumn) that migrate the rows. An
+        // EMPTY table has no rows to strand, so force keeps working there.
+        const populated = populatedRowCount(nsDir, existing.storage.path);
+        if (populated > 0)
+          throw new TableDeclareError(
+            `table '${table}' is declared in ${schemaFile} with a different contract and currently holds ${populated} data row(s): --force would silently reshape live data (409 EVOLUTION_REQUIRED). Use an explicit evolution operation instead — addColumn or retypeColumn — over 'duckbrain tables alter', POST /api/ns/:ns/tables/:table/alter, or the MCP tables_alter tool. An empty table may still be force-declared.`,
+            "refusal",
+            "EVOLUTION_REQUIRED",
+          );
+      } else {
+        refuse(
+          `table '${table}' is already declared in ${schemaFile} with a different contract. Re-run with --force to replace it.`,
+        );
+      }
     }
 
     const nextDocument: SchemaDocument = {

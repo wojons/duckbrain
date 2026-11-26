@@ -8,6 +8,7 @@
  * and REST routes call — no second code path:
  *
  *   tables_declare  → src/tables/declare.ts        (the `duckbrain tables declare` core)
+ *   tables_alter    → src/serialization/ddl.ts     (addColumn / retypeColumn — DDL-EVOLVE-001)
  *   table_insert    → src/tables/operations.ts     (insertTableRows, POST /api/ns/:ns/tables/:table)
  *   table_select    → src/tables/operations.ts     (selectTableRows, GET  /api/ns/:ns/tables/:table)
  *   table_update    → src/tables/operations.ts     (updateTableRows, PATCH …?pk=eq.<v>)
@@ -43,6 +44,12 @@ import {
   updateTableRows,
 } from "../../tables/operations";
 import { declareTable, TableDeclareError } from "../../tables/declare";
+import {
+  addColumn,
+  retypeColumn,
+  type DdlResult,
+} from "../../serialization/ddl";
+import { DECLARED_TYPES, type DeclaredColumnType } from "../../serialization/schemaTypes";
 import {
   auditRawSqlDenial,
   auditTableGrantDenial,
@@ -83,7 +90,12 @@ function refusalFromError(error: unknown, fallbackCode = "ERROR"): ToolRefusal {
   if (error instanceof TableDeclareError) {
     return {
       success: false,
-      code: error.kind === "usage" ? "VALIDATION_ERROR" : "DECLARE_REFUSED",
+      // DDL-EVOLVE-001: a refusal that names a specific protocol condition
+      // (EVOLUTION_REQUIRED) keeps its own code; the generic refusal stays
+      // DECLARE_REFUSED.
+      code:
+        error.code ??
+        (error.kind === "usage" ? "VALIDATION_ERROR" : "DECLARE_REFUSED"),
       error: error.message,
     };
   }
@@ -193,7 +205,7 @@ const TableDeclareInputSchema = z.object({
     .boolean()
     .optional()
     .describe(
-      "Replace an existing declaration of the same table with a different contract",
+      "Replace an existing declaration of the same table with a different contract. Refused 409 EVOLUTION_REQUIRED when the table holds rows (use tables_alter to evolve it); allowed when the table is empty.",
     ),
 });
 
@@ -254,6 +266,183 @@ export async function tablesDeclareTool(
   } catch (error) {
     return refusalFromError(error);
   }
+}
+
+// ---------------------------------------------------------------------------
+// tables_alter (DDL-EVOLVE-001)
+// ---------------------------------------------------------------------------
+
+const DECLARED_TYPE_ENUM = [...DECLARED_TYPES] as [string, ...string[]];
+
+const TableAlterInputSchema = z.object({
+  namespace: NamespaceArg,
+  table: z.string().describe("Declared table name"),
+  op: z
+    .string()
+    .min(1)
+    .describe("Evolution operation: addColumn | retypeColumn"),
+  column: z
+    .union([z.string(), z.record(z.string(), z.unknown())])
+    .optional()
+    .describe(
+      "addColumn: the new column object {name, type, nullable, default?}. retypeColumn: the existing column NAME.",
+    ),
+  type: z
+    .enum(DECLARED_TYPE_ENUM)
+    .optional()
+    .describe(
+      "Target declared type (addColumn: the column's type; retypeColumn: the type to retype to).",
+    ),
+  nullable: z.boolean().optional().describe("addColumn: explicit nullable flag"),
+  default: z
+    .unknown()
+    .optional()
+    .describe("addColumn: optional declared default value"),
+  policy: z
+    .enum(["null", "default", "materialize"])
+    .optional()
+    .describe(
+      "addColumn backfill policy (default is derived when omitted). retypeColumn always materializes.",
+    ),
+});
+
+/** The alter tool's success payload: the DDL result's public fields. */
+function alterOutput(result: DdlResult): Record<string, unknown> {
+  return {
+    success: true,
+    operation: result.operation,
+    namespace: result.ns,
+    ...(result.table !== undefined ? { table: result.table } : {}),
+    schemaVersion: result.schemaVersion,
+    documentHash: result.documentHash,
+    ...(result.generation ? { generation: result.generation } : {}),
+    ...(result.idempotentReplay ? { idempotentReplay: true } : {}),
+  };
+}
+
+/**
+ * Evolve a declared table — the MCP twin of `duckbrain tables alter` and the
+ * HTTP alter route (DDL-EVOLVE-001). Both ops run through the ONE production
+ * DDL coordinator (src/serialization/ddl.ts addColumn / retypeColumn): fence,
+ * journal, generation materialization and the atomic schema switch are all
+ * the coordinator's, never duplicated here.
+ *
+ * Refusals keep the same vocabulary on every surface: an op the coordinator
+ * does not implement (drop / rename / key change / view declaration) answers
+ * 400-equivalent OP_UNSUPPORTED, and a view declaration specifically answers
+ * VIEW_UNSUPPORTED because no route serves declared views yet.
+ */
+export async function tablesAlterTool(
+  input: unknown,
+  context?: McpToolContext,
+): Promise<Record<string, unknown>> {
+  const parsed = TableAlterInputSchema.safeParse(input);
+  if (!parsed.success) {
+    return {
+      success: false,
+      code: "VALIDATION_ERROR",
+      error: `Invalid input: ${parsed.error.issues.map((i) => i.message).join("; ")}`,
+    };
+  }
+  const args = parsed.data;
+  const namespace = resolveNamespaceName(args.namespace);
+  const denied = authorizeTableVerb(context, namespace, args.table, "write");
+  if (denied) return denied;
+
+  const unsupported = (code: string, message: string): Record<string, unknown> => ({
+    success: false,
+    code,
+    error: message,
+  });
+  if (args.op !== "addColumn" && args.op !== "retypeColumn") {
+    if (args.op === "declareView")
+      return unsupported(
+        "VIEW_UNSUPPORTED",
+        "declareView is not reachable on the alter surface: declared views are not served by any route yet (DDL-EVOLVE-001 keeps them coordinator-internal).",
+      );
+    return unsupported(
+      "OP_UNSUPPORTED",
+      `table evolution op '${args.op}' is not supported in v1 (allowed: addColumn, retypeColumn; drop/rename/key changes are refused — every other change needs a new table name)`,
+    );
+  }
+  if (args.op === "addColumn") {
+    if (typeof args.column !== "object" || args.column === null || Array.isArray(args.column))
+      return unsupported(
+        "VALIDATION_ERROR",
+        "addColumn requires `column` as an object {name, type, nullable, default?}",
+      );
+    const raw = args.column as Record<string, unknown>;
+    const name = raw.name;
+    const type = raw.type ?? args.type;
+    const nullable = raw.nullable ?? args.nullable;
+    if (typeof name !== "string" || name.length === 0)
+      return unsupported(
+        "VALIDATION_ERROR",
+        "addColumn requires the new column's name",
+      );
+    if (typeof type !== "string" || !isDeclaredTypeValue(type))
+      return unsupported(
+        "VALIDATION_ERROR",
+        `addColumn requires a declared type for the new column (one of ${DECLARED_TYPES.join("|")})`,
+      );
+    if (typeof nullable !== "boolean")
+      return unsupported(
+        "VALIDATION_ERROR",
+        `addColumn requires an explicit nullable flag for column '${name}'`,
+      );
+    const column: {
+      name: string;
+      type: DeclaredColumnType;
+      nullable: boolean;
+      default?: unknown;
+    } = { name, type: type as DeclaredColumnType, nullable };
+    if (raw.default !== undefined) column.default = raw.default;
+    else if (args.default !== undefined) column.default = args.default;
+    try {
+      const result = await addColumn(
+        namespace,
+        {
+          table: args.table,
+          column,
+          ...(args.policy !== undefined ? { policy: args.policy } : {}),
+        },
+        { principal: resolveToolPrincipal(context) },
+      );
+      return alterOutput(result);
+    } catch (error) {
+      return refusalFromError(error);
+    }
+  }
+  // retypeColumn
+  if (typeof args.column !== "string")
+    return unsupported(
+      "VALIDATION_ERROR",
+      "retypeColumn requires `column` to be the NAME of an existing column",
+    );
+  if (args.type === undefined)
+    return unsupported(
+      "VALIDATION_ERROR",
+      "retypeColumn requires `type` (the target declared type)",
+    );
+  try {
+    const result = await retypeColumn(
+      namespace,
+      {
+        table: args.table,
+        column: args.column,
+        type: args.type as DeclaredColumnType,
+        policy: "materialize",
+      },
+      { principal: resolveToolPrincipal(context) },
+    );
+    return alterOutput(result);
+  } catch (error) {
+    return refusalFromError(error);
+  }
+}
+
+function isDeclaredTypeValue(value: string): boolean {
+  return (DECLARED_TYPES as readonly string[]).includes(value);
 }
 
 // ---------------------------------------------------------------------------
@@ -619,6 +808,15 @@ export const tablesDeclareToolDef = {
   handler: tablesDeclareTool,
 };
 
+export const tablesAlterToolDef = {
+  name: "tables_alter",
+  title: "Alter Declared Table",
+  description:
+    "Evolve a declared table through the production DDL coordinator: addColumn (new column with a pinned backfill policy) or retypeColumn (permitted type change, materialized). Refuses drop/rename/key changes and view declarations.",
+  inputSchema: TableAlterInputSchema,
+  handler: tablesAlterTool,
+};
+
 export const tableListToolDef = {
   name: "table_list",
   title: "List Declared Tables",
@@ -674,6 +872,7 @@ export const queryToolDef = {
 
 export {
   TableDeclareInputSchema,
+  TableAlterInputSchema,
   TableInsertInputSchema,
   TableSelectInputSchema,
   TableUpdateInputSchema,
@@ -685,6 +884,7 @@ export {
 export const tableToolDefs = [
   tableListToolDef,
   tablesDeclareToolDef,
+  tablesAlterToolDef,
   tableInsertToolDef,
   tableSelectToolDef,
   tableUpdateToolDef,

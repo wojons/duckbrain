@@ -223,6 +223,89 @@
         },
         "type": "object"
       },
+      "TableAlterRequest": {
+        "oneOf": [
+          {
+            "properties": {
+              "column": {
+                "properties": {
+                  "default": {},
+                  "name": {
+                    "type": "string"
+                  },
+                  "nullable": {
+                    "type": "boolean"
+                  },
+                  "type": {
+                    "enum": [
+                      "string",
+                      "int64",
+                      "float64",
+                      "boolean",
+                      "timestamp",
+                      "json",
+                      "bytes"
+                    ],
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "name",
+                  "type",
+                  "nullable"
+                ],
+                "type": "object"
+              },
+              "op": {
+                "const": "addColumn",
+                "type": "string"
+              },
+              "policy": {
+                "enum": [
+                  "null",
+                  "default",
+                  "materialize"
+                ],
+                "type": "string"
+              }
+            },
+            "required": [
+              "op",
+              "column"
+            ],
+            "type": "object"
+          },
+          {
+            "properties": {
+              "column": {
+                "type": "string"
+              },
+              "op": {
+                "const": "retypeColumn",
+                "type": "string"
+              },
+              "type": {
+                "enum": [
+                  "string",
+                  "int64",
+                  "float64",
+                  "boolean",
+                  "timestamp",
+                  "json",
+                  "bytes"
+                ],
+                "type": "string"
+              }
+            },
+            "required": [
+              "op",
+              "column",
+              "type"
+            ],
+            "type": "object"
+          }
+        ]
+      },
       "TableDeclaration": {
         "properties": {
           "columns": {
@@ -1803,9 +1886,73 @@
         "summary": "Insert or replace one row of 'notes' by primary key"
       }
     },
+    "/api/ns/sdk_fixture/tables/{table}/alter": {
+      "post": {
+        "description": "Runs through the SAME DDL coordinator (src/serialization/ddl.ts) the MCP `tables_alter` tool and `duckbrain tables alter` call: fenced, journaled, and materialized through immutable generations. addColumn takes {op:'addColumn', column:{name,type,nullable,default?}, policy?} (policy null|default|materialize). retypeColumn takes {op:'retypeColumn', column, type} and always materializes. Drop/rename/key-change ops and view declarations are refused 400 (OP_UNSUPPORTED / VIEW_UNSUPPORTED).",
+        "operationId": "alter_table",
+        "parameters": [
+          {
+            "description": "Declared table name.",
+            "in": "path",
+            "name": "table",
+            "required": true,
+            "schema": {
+              "pattern": "^[a-z0-9_-]+$",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TableAlterRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Applied — the operation name, the resulting table schemaVersion and document hash, plus the materialized generation when the op wrote one."
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "description": "Refused"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "description": "Refused"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "description": "Refused"
+          }
+        },
+        "summary": "Evolve a declared table (addColumn / retypeColumn)"
+      }
+    },
     "/api/ns/sdk_fixture/tables/{table}/declare": {
       "post": {
-        "description": "Writes through the SAME core the CLI (`duckbrain tables declare`) and the MCP `tables_declare` tool call. 201 when the declaration is new, 200 when an identical contract already existed or `force` replaced it.",
+        "description": "Writes through the SAME core the CLI (`duckbrain tables declare`) and the MCP `tables_declare` tool call. 201 when the declaration is new, 200 when an identical contract already existed or `force` replaced it. `force` on a POPULATED table whose contract differs is refused 409 EVOLUTION_REQUIRED — use the alter route to evolve it instead.",
         "operationId": "declare_table",
         "parameters": [
           {
