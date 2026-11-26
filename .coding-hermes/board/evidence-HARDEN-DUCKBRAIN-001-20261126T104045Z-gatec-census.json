@@ -1,0 +1,408 @@
+{
+ "census": "gate (c) open P0/P1 disposition refresh \u2014 worker HARDEN-DUCKBRAIN-001 verification slice",
+ "tick": "duckbrain-foreman-2026-11-26-10-08-36",
+ "generated_at_utc": "2026-11-26T10:40:45Z",
+ "base_sha_published": "7fb8fc1d6a4f78aefada3caa598b62a80287ea93",
+ "head_sha": "worker HEAD at measurement = 7fb8fc1d6a4f78aefada3caa598b62a80287ea93 (base; no product change made by this slice)",
+ "board_path": ".coding-hermes/board/tasks.jsonl",
+ "physical_rows_total": 637,
+ "method": "latest physical row per unique task id (last JSONL line wins); open = status != complete; P0/P1 priority normalized (string P0/P1; integer 0->P0, 1->P1); classification from each row's own fields only \u2014 title never sole evidence",
+ "commands": [
+  "python3 census over .coding-hermes/board/tasks.jsonl (script at /home/kara/.hermes/cache/scratch/gatec_census.py: line-wise json.loads, per-id last-wins, status!=complete && priority in P0/P1)",
+  "python3 case-insensitive field sweep for owner/parking evidence (blocked_reason/foreman_note/reasoning/worker_summary/review_notes) over all 34 open rows",
+  "python3 full-field dump for borderline rows (QA-DUCKBRAIN-FOREMAN-1, RELEASE-2026-11-01-001, S3-READ-AMPLIFICATION-001, RELEASE-2026-11-15-001, DF-MCP-HTTP-001, QA-DUCKBRAIN-044)",
+  "gh run list --repo wojons/duckbrain --commit 7fb8fc1d6a4f78aefada3caa598b62a80287ea93 --limit 5 --json databaseId,status,conclusion,displayTitle,createdAt,headSha",
+  "git -C /home/kara/worktrees/duckbrain-HARDEN-DUCKBRAIN-001 rev-parse HEAD (at measurement)"
+ ],
+ "classification_rules": {
+  "parked_owner_gated": "status=blocked, or non-title fields record an owner gate / absent authorization / owner-only prerequisite / ownership by another lane or plane \u2014 row not dispatchable by duckbrain workers; parked_kind names the specific gate",
+  "in_flight": "status=in_progress, or dispatched_at set and completed_at unset and status not parked",
+  "owner_directive_recorded": "open, not parked; non-title fields record an owner ruling that authorizes the remaining agent-executable work without further owner input",
+  "dispatchable_backlog": "open P0/P1 with no recorded parking or owner ruling in non-title fields",
+  "title_rule": "owner status is NEVER inferred from the title alone; a title claim is used only when corroborated by another row field, and field-vs-title contradictions are disclosed per row"
+ },
+ "counts": {
+  "total_open_p0_p1": 34,
+  "parked_owner_gated": 12,
+  "in_flight": 0,
+  "owner_directive_recorded": 4,
+  "dispatchable_backlog": 18,
+  "status_blocked": 7,
+  "status_pending": 27,
+  "status_in_progress": 0,
+  "status_other": 0
+ },
+ "ci_exact_head": {
+  "query": "gh run list --repo wojons/duckbrain --commit 7fb8fc1d6a4f78aefada3caa598b62a80287ea93 --limit 5 --json databaseId,status,conclusion,displayTitle,createdAt,headSha",
+  "runs": [
+   {
+    "conclusion": "success",
+    "createdAt": "2026-11-26T04:01:29Z",
+    "databaseId": 45752556970,
+    "displayTitle": "chore(board): record hardening gate-c verification tick 2026-11-26-03\u2026",
+    "headSha": "7fb8fc1d6a4f78aefada3caa598b62a80287ea93",
+    "status": "completed"
+   }
+  ],
+  "terminal_result": "exactly 1 run on the base HEAD: run 45752556970 status=completed conclusion=success (displayTitle 'chore(board): record hardening gate-c verification tick 2026-11-26-03\u2026')"
+ },
+ "rows": [
+  {
+   "id": "RELEASE-2026-10-26-001",
+   "priority": "P1",
+   "raw_priority": "P1",
+   "status": "pending",
+   "classification": "owner_directive_recorded",
+   "line": 416,
+   "title": "P1 \u2014 DuckBrain v1.2.0 cut: AUTHORIZED by owner 2026-11-11 (minor cut = standing releng authority; owner gate released: 'approved on both' Oct 26 + Nov 1 decisio",
+   "classification_basis": "foreman_note/reasoning: 'Owner-approval arm B REMOVED \u2014 a minor cut is standing releng authority; only a major/breaking cut escalates' \u2014 owner ruling recorded in fields; remaining gates agent-executable"
+  },
+  {
+   "id": "QA-DUCKBRAIN-PERF-3",
+   "priority": "P1",
+   "raw_priority": "P1",
+   "status": "blocked",
+   "classification": "parked_owner_gated",
+   "line": 440,
+   "title": "[P1] QA battery refused to launch \u2014 dispatch path is a subdirectory of parent git repo",
+   "classification_basis": "blocked_reason: 'infrastructure-owned: acceptance criteria reference bunker-qa.sh (bunker project)' \u2014 not duckbrain source; duckbrain workers cannot solve",
+   "parked_kind": "infrastructure_lane"
+  },
+  {
+   "id": "QA-DUCKBRAIN-FOREMAN-1",
+   "priority": "P1",
+   "raw_priority": "P1",
+   "status": "pending",
+   "classification": "parked_owner_gated",
+   "line": 441,
+   "title": "P1 \u2014 Native suite ENOSPC disk capacity: OWNER DIRECTIVE 2026-11-11 \u2014 clear space on the BUNKERS and get them healthy; attach cleanup to the existing per-bunker ",
+   "classification_basis": "blocked_reason: 'Owner: bunker/QA lane'; review_notes: 'Move to bunker board or mark blocked on bunker-foreman. Duckbrain workers cannot solve'",
+   "parked_kind": "infrastructure_lane"
+  },
+  {
+   "id": "QA-DUCKBRAIN-FOREMAN-2",
+   "priority": "P1",
+   "raw_priority": "P1",
+   "status": "blocked",
+   "classification": "parked_owner_gated",
+   "line": 442,
+   "title": "[P1] Chaos disconnect test blocked by disk capacity (ENOSPC)",
+   "classification_basis": "status=blocked; blocked_reason 'Owner: bunker/QA lane'; ENOSPC disk capacity, bunker-foreman ownership",
+   "parked_kind": "infrastructure_lane"
+  },
+  {
+   "id": "RELEASE-2026-11-01-001",
+   "priority": "P1",
+   "raw_priority": "P1",
+   "status": "pending",
+   "classification": "parked_owner_gated",
+   "line": 450,
+   "title": "DuckBrain v1.2.0 readiness sweep 2026-11-01: authorization NOW GRANTED by owner 2026-11-11 (unblocked; sweep's other gates still apply: release surface + curren",
+   "classification_basis": "blocked_reason: 'NO-GO: ... owner authorization is absent ... Required authorization: OWNER *** RELEASE-2026-10-26-001 APPROVE_V1_2_0_CUT'. CONTRADICTION DISCLOSED: title claims authorization NOW GRANTED 2026-11-11, but blocked_reason/foreman_note/worker_summary fields all record authorization absent \u2014 fields win per title-alone prohibition",
+   "parked_kind": "owner_gate_absent"
+  },
+  {
+   "id": "HARDEN-DUCKBRAIN-001",
+   "priority": "P0",
+   "raw_priority": "P0",
+   "status": "pending",
+   "classification": "owner_directive_recorded",
+   "line": 461,
+   "title": "[P0] HARDENING LOOP (contract row) \u2014 drive DuckBrain to a stranger-proof state: reproduce every claimed boundary, fix it, prove with a control, deploy as the te",
+   "classification_basis": "reasoning: 'Owner instruction 2026-11-03: /coding Hermes hardening duckbrain' \u2014 the loop contract row; this census is its gate (c) refresh"
+  },
+  {
+   "id": "HARDEN-DUCKBRAIN-002",
+   "priority": "P1",
+   "raw_priority": "P1",
+   "status": "blocked",
+   "classification": "parked_owner_gated",
+   "line": 462,
+   "title": "P1 \u2014 Live daemon's 9.2G data dir inside a git checkout: OWNER AUTHORIZED 2026-11-11 \u2014 run the standing checkout-compression/history-squash process on the live d",
+   "classification_basis": "status=blocked; foreman_note: 'Still owner-gated: the cutover is one restart of :3000'; 'only the owner-gated restart remains'",
+   "parked_kind": "owner_gate_pending_restart"
+  },
+  {
+   "id": "OBSDB-007",
+   "priority": "P1",
+   "raw_priority": "P1",
+   "status": "blocked",
+   "classification": "parked_owner_gated",
+   "line": 463,
+   "title": "P1 \u2014 Deploy /metrics: OWNER AUTHORIZED 2026-11-11 the live :3000 daemon restart to enable metrics (owner: 'you can reset the daemon so metrics get enabled'). Re",
+   "classification_basis": "status=blocked; reasoning: 'the restart is owner-gated'",
+   "parked_kind": "owner_gate_pending_restart"
+  },
+  {
+   "id": "PERF-DUCKBRAIN-001",
+   "priority": "P1",
+   "raw_priority": "P1",
+   "status": "blocked",
+   "classification": "parked_owner_gated",
+   "line": 466,
+   "title": "P1 \u2014 /api/memories 11% >=3s from FILE COUNT (20-29k jsonl/namespace): OWNER APPROVED the squash design \u2014 Cassandra-style tombstone compaction per the original s",
+   "classification_basis": "status=blocked; blocked_reason: 'DATA HALF OWNER-GATED ... keeps ONLY the owner-gated production compaction half'",
+   "parked_kind": "owner_gate_production_compaction"
+  },
+  {
+   "id": "PERF-DUCKBRAIN-002",
+   "priority": "P1",
+   "raw_priority": "P1",
+   "status": "blocked",
+   "classification": "parked_owner_gated",
+   "line": 468,
+   "title": "P1 \u2014 Compact PRODUCTION namespaces (fleet-quality 29,080 files first): OWNER APPROVED 2026-11-11. Execute via the tombstone/squash process from PERF-DUCKBRAIN-0",
+   "classification_basis": "status=blocked; blocked_reason: 'AC1-4 + AC6 need the OWNER: production segment compaction of the live namespaces and a :3000 relaunch'",
+   "parked_kind": "owner_gate_production_compaction"
+  },
+  {
+   "id": "SEC-AUTHZ-001",
+   "priority": "P1",
+   "raw_priority": "P1",
+   "status": "blocked",
+   "classification": "parked_owner_gated",
+   "line": 471,
+   "title": "P1 \u2014 17/37 live tokens ADMIN via optional roles: OWNER DIRECTIVE 2026-11-11 'figure it out on your own' \u2014 design + execute token role-tightening (default least-",
+   "classification_basis": "status=blocked; foreman_note: 'skipped by this fire as owner-gated in practice'; 'land behind an explicit owner-approved migration window'",
+   "parked_kind": "owner_gate_migration_window"
+  },
+  {
+   "id": "S3-READ-AMPLIFICATION-001",
+   "priority": "P1",
+   "raw_priority": "P1",
+   "status": "pending",
+   "classification": "parked_owner_gated",
+   "line": 494,
+   "title": "[P1] One partition is 10,002 objects (one 46MB file plus ~10,000 three-line files) \u2014 a wildcard read over it needs ~10,000 GETs and does not finish in 5 minutes",
+   "classification_basis": "foreman_note: 'AC(3) production compaction stays owner-gated'; 'AC-3 NOT PROVEN \u2014 owner-gated, and this loop's hard rule forbids touching production namespaces'; landed AC-1/2 halves recorded in same fields",
+   "parked_kind": "owner_gate_production_compaction"
+  },
+  {
+   "id": "DB-3",
+   "priority": "P1",
+   "raw_priority": "P1",
+   "status": "pending",
+   "classification": "dispatchable_backlog",
+   "line": 502,
+   "title": "IMPROVE OURS - Ship session-start memory injection as installable plugins for other agents, not only the Hermes provider",
+   "classification_basis": "no parking or owner ruling recorded in non-title fields (case-insensitive field sweep over blocked_reason/foreman_note/reasoning/worker_summary/review_notes)"
+  },
+  {
+   "id": "DB-6",
+   "priority": "P1",
+   "raw_priority": "P1",
+   "status": "pending",
+   "classification": "dispatchable_backlog",
+   "line": 507,
+   "title": "IMPROVE OURS - A key without a roles field is admin by default: 2/2 live keys are admin, 0 use table grants",
+   "classification_basis": "no parking or owner ruling recorded in non-title fields (case-insensitive field sweep over blocked_reason/foreman_note/reasoning/worker_summary/review_notes)"
+  },
+  {
+   "id": "RELEASE-2026-11-09-001",
+   "priority": "P1",
+   "raw_priority": "P1",
+   "status": "pending",
+   "classification": "owner_directive_recorded",
+   "line": 512,
+   "title": "P1 - v1.2.0 cut prep (rolling): NO CUT at 9f2ddbee (pass 19) - product tree byte-identical to the pass-17 candidate 00ca0bc2 (every commit since is board/ledger",
+   "classification_basis": "reasoning addendum: 'The owner authorized the v1.2.0 minor cut on 2026-11-11, recorded in pending RELEASE-2026-10-26-001' \u2014 owner ruling recorded in fields; NO CUT rolling prep continues"
+  },
+  {
+   "id": "S3-DR-HISTORY-001",
+   "priority": "P1",
+   "raw_priority": "P1",
+   "status": "pending",
+   "classification": "dispatchable_backlog",
+   "line": 513,
+   "title": "DR restore discards namespace git history that is already in S3 \u2014 add `s3 sync <ns> pull --with-history`",
+   "classification_basis": "no parking or owner ruling recorded in non-title fields (case-insensitive field sweep over blocked_reason/foreman_note/reasoning/worker_summary/review_notes)"
+  },
+  {
+   "id": "S3-HISTORY-COVERAGE-001",
+   "priority": "P1",
+   "raw_priority": "P1",
+   "status": "pending",
+   "classification": "dispatchable_backlog",
+   "line": 514,
+   "title": "Git-history mirror is opt-in per namespace with a silent skip and no status surface \u2014 38 of 238 mapped namespaces have no history, including `hermes`",
+   "classification_basis": "no parking or owner ruling recorded in non-title fields (case-insensitive field sweep over blocked_reason/foreman_note/reasoning/worker_summary/review_notes)"
+  },
+  {
+   "id": "S3-LEDGER-COMPLETENESS-001",
+   "priority": "P1",
+   "raw_priority": "P1",
+   "status": "pending",
+   "classification": "dispatchable_backlog",
+   "line": 515,
+   "title": "A partial push publishes a completeness ledger built only from what landed, so a DR pull reports a clean restore of an incomplete backup",
+   "classification_basis": "no parking or owner ruling recorded in non-title fields (case-insensitive field sweep over blocked_reason/foreman_note/reasoning/worker_summary/review_notes)"
+  },
+  {
+   "id": "S3-PULL-MANIFEST-GUARD-001",
+   "priority": "P1",
+   "raw_priority": "P1",
+   "status": "pending",
+   "classification": "dispatchable_backlog",
+   "line": 516,
+   "title": "Pull's only guard against overwriting newer local data is a non-atomically written local manifest \u2014 a missing or corrupt manifest silently turns pull into 'remo",
+   "classification_basis": "no parking or owner ruling recorded in non-title fields (case-insensitive field sweep over blocked_reason/foreman_note/reasoning/worker_summary/review_notes)"
+  },
+  {
+   "id": "MCP-SQUASH-GATE-001",
+   "priority": "P1",
+   "raw_priority": "P1",
+   "status": "pending",
+   "classification": "dispatchable_backlog",
+   "line": 530,
+   "title": "MCP squash compacts the store with no admin role, no confirmation, and dryRun defaulting to false \u2014 HTTP refuses the identical call without admin + confirm",
+   "classification_basis": "no parking or owner ruling recorded in non-title fields (case-insensitive field sweep over blocked_reason/foreman_note/reasoning/worker_summary/review_notes)"
+  },
+  {
+   "id": "CLI-TABLES-VERBS-001",
+   "priority": "P1",
+   "raw_priority": "P1",
+   "status": "pending",
+   "classification": "dispatchable_backlog",
+   "line": 531,
+   "title": "The parity matrix claims table.list on the CLI but `tables` dispatches only `declare` \u2014 and the parity test cannot see a CLI sub-verb unless the row declares a ",
+   "classification_basis": "no parking or owner ruling recorded in non-title fields (case-insensitive field sweep over blocked_reason/foreman_note/reasoning/worker_summary/review_notes)"
+  },
+  {
+   "id": "MCP-OPS-S3-TOOLS-001",
+   "priority": "P1",
+   "raw_priority": "P1",
+   "status": "pending",
+   "classification": "dispatchable_backlog",
+   "line": 532,
+   "title": "The MCP surface has no S3 and no ops tools \u2014 an agent can squash a namespace but cannot list or clear the ghosts it creates, run a sync, prune a namespace or co",
+   "classification_basis": "no parking or owner ruling recorded in non-title fields (case-insensitive field sweep over blocked_reason/foreman_note/reasoning/worker_summary/review_notes)"
+  },
+  {
+   "id": "QUERY-HTTP-001",
+   "priority": "P1",
+   "raw_priority": "P1",
+   "status": "pending",
+   "classification": "dispatchable_backlog",
+   "line": 533,
+   "title": "`query` exists on MCP and CLI but has no HTTP route, and the raw-SQL grant middleware it needs is exported and never mounted",
+   "classification_basis": "no parking or owner ruling recorded in non-title fields (case-insensitive field sweep over blocked_reason/foreman_note/reasoning/worker_summary/review_notes)"
+  },
+  {
+   "id": "DOCS-EXAMPLES-001",
+   "priority": "P1",
+   "raw_priority": "P1",
+   "status": "pending",
+   "classification": "dispatchable_backlog",
+   "line": 535,
+   "title": "Documented HTTP and CLI examples are never executed \u2014 add an executable claim-vs-live contract suite",
+   "classification_basis": "no parking or owner ruling recorded in non-title fields (case-insensitive field sweep over blocked_reason/foreman_note/reasoning/worker_summary/review_notes)"
+  },
+  {
+   "id": "RELEASE-VERSION-001",
+   "priority": "P1",
+   "raw_priority": "P1",
+   "status": "pending",
+   "classification": "dispatchable_backlog",
+   "line": 537,
+   "title": "The shipped binary announces two different versions and CI pins the stale one \u2014 `--version` says 1.2.0, `help` says 1.1.0, README badge says 1.1.0",
+   "classification_basis": "no parking or owner ruling recorded in non-title fields (case-insensitive field sweep over blocked_reason/foreman_note/reasoning/worker_summary/review_notes)"
+  },
+  {
+   "id": "REST-IDEMPOTENCY-001",
+   "priority": "P1",
+   "raw_priority": "P1",
+   "status": "pending",
+   "classification": "dispatchable_backlog",
+   "line": 567,
+   "title": "Honor Idempotency-Key on table writes: replay returns the original result, conflicting body returns 409 IDEMPOTENCY_CONFLICT, durable across restart",
+   "classification_basis": "no parking or owner ruling recorded in non-title fields (case-insensitive field sweep over blocked_reason/foreman_note/reasoning/worker_summary/review_notes)"
+  },
+  {
+   "id": "RELEASE-2026-11-15-001",
+   "priority": "P1",
+   "raw_priority": "P1",
+   "status": "pending",
+   "classification": "parked_owner_gated",
+   "line": 592,
+   "title": "P1 \u2014 OWNER-GATED: push a v1.2.0 tag today and the Release workflow fails AFTER the tag is public \u2014 the repo has ZERO Actions secrets, so NPM_TOKEN is absent and",
+   "classification_basis": "reasoning field (not title): 'gh api .../actions/secrets --jq .total_count returns 0' + 'pasted into the repo secret by the owner' \u2014 owner-only credential prerequisite recorded in fields",
+   "parked_kind": "owner_prerequisite_credentials"
+  },
+  {
+   "id": "INT-CI-039",
+   "priority": "P1",
+   "raw_priority": "P1",
+   "status": "pending",
+   "classification": "dispatchable_backlog",
+   "line": 600,
+   "title": "CI red on main: src/s3/sync-stopped-s3stop001.test.ts:191 is same-millisecond flaky (lastPushAttemptAt === lastPushAt)",
+   "classification_basis": "no parking or owner ruling recorded in non-title fields (case-insensitive field sweep over blocked_reason/foreman_note/reasoning/worker_summary/review_notes)"
+  },
+  {
+   "id": "QA-DUCKBRAIN-042",
+   "priority": "P1",
+   "raw_priority": "P1",
+   "status": "pending",
+   "classification": "dispatchable_backlog",
+   "line": 608,
+   "title": "P1 \u2014 CLI `recall --prefix=<p>` silently returns the WHOLE namespace: the prefix never reaches the recall tool (44/44 rows vs 9 on REST and MCP)",
+   "classification_basis": "no parking or owner ruling recorded in non-title fields (case-insensitive field sweep over blocked_reason/foreman_note/reasoning/worker_summary/review_notes)"
+  },
+  {
+   "id": "QA-DUCKBRAIN-044",
+   "priority": "P1",
+   "raw_priority": "P1",
+   "status": "pending",
+   "classification": "parked_owner_gated",
+   "line": 612,
+   "title": "[P1] cos.initiatives read view serves 619 of 927 board cards: rows older than the active segment can never be patched again and stay invisible (all 3 off-by-one",
+   "classification_basis": "foreman_note: 'this row's intent is already carded on the requirements plane as t_949dc64f (board cos-fleet)'; 'Owner: task-router lane' \u2014 parked on another plane's card + lane ownership recorded in fields",
+   "parked_kind": "lane_assignment_other_plane"
+  },
+  {
+   "id": "QA-DUCKBRAIN-046",
+   "priority": "P1",
+   "raw_priority": "P1",
+   "status": "pending",
+   "classification": "dispatchable_backlog",
+   "line": 614,
+   "title": "48% of the duckbrain open board is undispatchable: acceptance_gate reports 57 of 118 open rows failing (no command, no outcome, or unexpanded placeholders)",
+   "classification_basis": "no parking or owner ruling recorded in non-title fields (case-insensitive field sweep over blocked_reason/foreman_note/reasoning/worker_summary/review_notes)"
+  },
+  {
+   "id": "INT-CI-042",
+   "priority": "P1",
+   "raw_priority": "P1",
+   "status": "pending",
+   "classification": "dispatchable_backlog",
+   "line": 622,
+   "title": "RECURRENCE of INT-CI-040: test-counts drift red since 18:30Z \u2014 989625cb added a test case without regenerating the manifest",
+   "classification_basis": "no parking or owner ruling recorded in non-title fields (case-insensitive field sweep over blocked_reason/foreman_note/reasoning/worker_summary/review_notes)"
+  },
+  {
+   "id": "DF-MCP-HTTP-001",
+   "priority": "P1",
+   "raw_priority": "P1",
+   "status": "pending",
+   "classification": "owner_directive_recorded",
+   "line": 626,
+   "title": "P1 \u2014 Move DuckBrain MCP from stdio to streamable-HTTP on the :3000 daemon (owner-approved 11-16): add MCP-over-HTTP endpoint to bin/duckbrain.js server startup ",
+   "classification_basis": "foreman_note field: 'MEMORY-SUBSYSTEM WIRING REQUIREMENT (owner 11-16)' \u2014 owner-set requirement recorded in a field, corroborating the title's owner-approved 11-16 claim (not title-only)"
+  },
+  {
+   "id": "INT-CI-043",
+   "priority": "P1",
+   "raw_priority": "P1",
+   "status": "pending",
+   "classification": "dispatchable_backlog",
+   "line": 629,
+   "title": "CI red on main run 45116477909 (head 5d3b5556, board-only commit; product tree identical to green run 04:58Z at fc70f922): suite-level teardown failure in src/c",
+   "classification_basis": "no parking or owner ruling recorded in non-title fields (case-insensitive field sweep over blocked_reason/foreman_note/reasoning/worker_summary/review_notes)"
+  }
+ ],
+ "disposition": "Counts reconcile: 12 parked_owner_gated + 0 in_flight + 4 owner_directive_recorded + 18 dispatchable_backlog = 34 open P0/P1 rows (unchanged total vs the 2026-11-26T03:57:49Z census at 9c233b75). Classification deltas vs that census are rule-driven, not row-driven: RELEASE-2026-11-01-001 moved to parked_owner_gated (fields record authorization absent \u2014 title's granted claim not corroborated), S3-READ-AMPLIFICATION-001 moved to parked_owner_gated (remaining scope owner-gated in foreman_note), RELEASE-2026-11-15-001 and QA-DUCKBRAIN-044 classified parked on field evidence (owner-only secret prerequisite; other-plane card + lane ownership), QA-DUCKBRAIN-FOREMAN-1 moved to parked_owner_gated (bunker/QA lane ownership in blocked_reason). Owner-gated rows are not self-authorized; dispatchable rows remain feeder backlog. No production restart, release/tag, or live-data rewrite was performed. This slice changed NO source/product files.",
+ "trace_marker": "ch:trace row=HARDEN-DUCKBRAIN-001 spec=none:gate-c-census wave=none:foreman-2026-11-26-10-08-36 test=none:verification-only doc=none evidence=.coding-hermes/board/evidence-HARDEN-DUCKBRAIN-001-20261126T104045Z-gatec-census.json witness=none verdict=none:foreman-closeout commit=none:self-referential-sha-reserved-for-foreman-closeout memory=none:foreman-closeout",
+ "status": "complete",
+ "tier": "T1",
+ "evidence": ".coding-hermes/board/evidence-HARDEN-DUCKBRAIN-001-20261126T104045Z-gatec-census.json"
+}
