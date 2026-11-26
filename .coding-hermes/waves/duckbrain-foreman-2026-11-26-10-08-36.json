@@ -1,0 +1,48 @@
+{
+  "tick": "duckbrain-foreman-2026-11-26-10-08-36",
+  "block": "HARDEN-DUCKBRAIN-010 (contract row HARDEN-DUCKBRAIN-001)",
+  "wave_budget": 12,
+  "slots": 6,
+  "path": "serial-fallback",
+  "serial_reason": "resume-first block has one ready row; remaining rows are owner-gated or closed; no mutually independent second row exists in the selected block",
+  "base": "7fb8fc1d6a4f78aefada3caa598b62a80287ea93",
+  "workers": [
+    {
+      "row": "HARDEN-DUCKBRAIN-001",
+      "worktree": "/home/kara/worktrees/duckbrain-HARDEN-DUCKBRAIN-001",
+      "branch": "wt/HARDEN-DUCKBRAIN-001",
+      "brief": "/home/kara/.hermes/cache/scratch/duckbrain-foreman-2026-11-26-10-08-36/brief-HARDEN-DUCKBRAIN-001.txt",
+      "model": "glm-5.3-flash",
+      "provider_requested": "opencode-go-2",
+      "provider_served": "custom (mismatch recorded)",
+      "worker_commit": "912fbf30bd598ce7ff34aec33e57a559b4ee6912",
+      "worker_remote_parity": 0,
+      "merge_commit": "8396f79c7c4f0bc782376140c12767c79dd70682",
+      "changed_paths": [
+        ".coding-hermes/board/evidence-HARDEN-DUCKBRAIN-001-20261126T104045Z-gatec-census.json"
+      ]
+    }
+  ],
+  "verification": {
+    "artifact_sha256": "8515c26615e30eead36ae75aa990dc8f0fc6434ec3498716e6f9bf25790fb251",
+    "artifact_checks": "16/16 ALL_PASS",
+    "standalone_gitreins_run": "c8d3bda6",
+    "standalone_gitreins_passed": true,
+    "tier2": "skipped",
+    "local_gate": "PASS: python3 -m json.tool artifact; boardctl validate RESULT: OK (726 warnings)",
+    "base_ci_run": 45752556970,
+    "base_ci_conclusion": "success"
+  },
+  "closeout": {
+    "status": "partial",
+    "closeout_commit": "ddccb9d715bf1a8bbed45baf5df7fd0ee6588fab",
+    "remote_parity": 0,
+    "final_merge_head_ci": "in_progress",
+    "finished_at": "2026-11-26T11:11:22Z",
+    "open": [
+      "HARDEN-DUCKBRAIN-001 remains pending loop driver",
+      "18 dispatchable P0/P1 rows remain",
+      "final exact-head CI was nonterminal at close"
+    ]
+  }
+}
