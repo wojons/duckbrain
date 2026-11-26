@@ -18,6 +18,10 @@
  * — so a CLI declaration and an MCP declaration are the same code path and
  * cannot drift apart.
  *
+ * DDL-EVOLVE-001: the same pattern for evolution — `tables alter` calls the
+ * DDL coordinator's addColumn/retypeColumn (src/serialization/ddl.ts), the
+ * SAME ops the HTTP alter route and the MCP `tables_alter` tool call.
+ *
  * Column types on the command line are the DB-SUPA-3 DuckDB-facing names
  * (TABLE_COLUMN_TYPES, reused from src/schema/table-registry.ts — never
  * duplicated here).
@@ -32,6 +36,9 @@ import {
 } from "../schema/table-registry.js";
 import { declareTable, TableDeclareError } from "../tables/declare.js";
 import { auditNamespaceTableKeys } from "../tables/audit.js";
+import { addColumn, retypeColumn, type BackfillPolicy } from "../serialization/ddl.js";
+import { ApiError } from "../http/middleware/errorHandler.js";
+import { DECLARED_TYPES, type DeclaredColumnType } from "../serialization/schemaTypes.js";
 
 /** Example JSON value per CLI type, for the printed curl POST example. */
 const EXAMPLE_VALUE: Record<string, string> = {
@@ -67,12 +74,40 @@ Options:
                            declaration) instead of schema.json.
   --force                  Replace an existing declaration of the same
                            table name. Without it, a conflicting existing
-                           declaration is refused.
+                           declaration is refused. A --force that would
+                           reshape a POPULATED table is refused
+                           (EVOLUTION_REQUIRED): evolve it with
+                           \`duckbrain tables alter\` instead.
   --help, -h               Show this help.
 
 Examples:
   duckbrain tables declare e2e-supagap widgets --column id=integer --column name=varchar --primary id
   duckbrain tables declare notes events --column id=bigint --column at=timestamp --legacy`;
+
+export const TABLES_ALTER_USAGE = `Usage:
+  duckbrain tables alter <namespace> <table> add-column <name>=<type> [--nullable | --default '<json>'] [--policy null|default|materialize]
+  duckbrain tables alter <namespace> <table> retype-column <column> <type>
+
+Evolve a declared table through the production DDL coordinator
+(src/serialization/ddl.ts) — the SAME ops the HTTP alter route
+(POST /api/ns/:ns/tables/:table/alter) and the MCP \`tables_alter\` tool call.
+Both increment the table's schemaVersion and journal under .duckbrain-ddl/.
+
+  add-column     Adds a new column. The type is a declared v1 type
+                 (${DECLARED_TYPES.join("|")}). Without --policy the
+                 coordinator derives the backfill policy: a default implies
+                 'default', nullable implies 'null', and a required column
+                 without a default is refused (BACKFILL_POLICY_REQUIRED).
+                 --policy materialize physically rewrites the rows into a new
+                 immutable generation (requires a default).
+  retype-column  Retypes an existing column. Allowed in v1:
+                 int64->float64, string->json, string->timestamp. Always
+                 materializes: rows are converted and validated into a new
+                 generation BEFORE anything is switched (a lossy value aborts
+                 with nothing written).
+
+Drop / rename / key changes and view declarations are refused in v1; every
+other shape change needs a new table name.`;
 
 export const TABLES_AUDIT_KEYS_USAGE = `Usage: duckbrain tables audit-keys --namespace <namespace>
 
@@ -87,7 +122,9 @@ function fail(message: string): never {
 }
 
 function printHelp(): void {
-  console.log(`${TABLES_DECLARE_USAGE}\n\n${TABLES_AUDIT_KEYS_USAGE}`);
+  console.log(
+    `${TABLES_DECLARE_USAGE}\n\n${TABLES_ALTER_USAGE}\n\n${TABLES_AUDIT_KEYS_USAGE}`,
+  );
 }
 
 interface AuditKeysArgs {
@@ -122,6 +159,184 @@ function printAuditKeys(
   audit: ReturnType<typeof auditNamespaceTableKeys>,
 ): void {
   console.log(JSON.stringify(audit, null, 2));
+}
+
+// ---------------------------------------------------------------------------
+// DDL-EVOLVE-001 — `tables alter` (addColumn / retypeColumn over ddl.ts)
+// ---------------------------------------------------------------------------
+
+type AlterArgs =
+  | {
+      ns: string;
+      table: string;
+      op: "addColumn";
+      column: {
+        name: string;
+        type: string;
+        nullable: boolean;
+        default?: unknown;
+      };
+      policy?: BackfillPolicy;
+    }
+  | {
+      ns: string;
+      table: string;
+      op: "retypeColumn";
+      /** The existing column's NAME. */
+      column: string;
+      type: string;
+    };
+
+/**
+ * Parse `alter <ns> <table> <op> ...`. The declared type vocabulary is the
+ * ddl.ts canonical one (string|int64|float64|boolean|timestamp|json|bytes) —
+ * NOT the DuckDB-facing declare names — because the call goes straight into
+ * the DDL coordinator.
+ */
+function parseAlterArgs(argv: string[]): AlterArgs | null {
+  if (argv[0] === "--help" || argv[0] === "-h" || argv[0] === undefined) {
+    console.log(TABLES_ALTER_USAGE);
+    return null;
+  }
+  const [ns, table, op, ...rest] = argv;
+  if (!ns || !table) fail("a namespace and a table name are required");
+  if (op === undefined)
+    fail("an operation is required: 'add-column' or 'retype-column'");
+  if (op !== "add-column" && op !== "retype-column")
+    fail(
+      `Unknown alter operation '${op}' (expected: add-column or retype-column)`,
+    );
+
+  const isDeclared = (value: string): boolean =>
+    (DECLARED_TYPES as readonly string[]).includes(value);
+
+  if (op === "add-column") {
+    const flags = { nullable: false, defaultValue: undefined as unknown, hasDefault: false, policy: undefined as BackfillPolicy | undefined };
+    const positional: string[] = [];
+    let i = 0;
+    while (i < rest.length) {
+      const arg = rest[i]!;
+      i += 1;
+      if (arg === "--nullable") {
+        flags.nullable = true;
+        continue;
+      }
+      if (arg === "--default" || arg.startsWith("--default=")) {
+        const value = arg.startsWith("--default=")
+          ? arg.slice("--default=".length)
+          : (() => {
+              const v = rest[i];
+              i += 1;
+              if (v === undefined) fail("--default requires a value");
+              return v;
+            })();
+        try {
+          flags.defaultValue = JSON.parse(value) as unknown;
+        } catch {
+          fail(
+            `--default must be valid JSON (strings quoted, e.g. --default '"promoted"' or --default 7), got '${value}'`,
+          );
+        }
+        flags.hasDefault = true;
+        continue;
+      }
+      if (arg === "--policy" || arg.startsWith("--policy=")) {
+        const value = arg.startsWith("--policy=")
+          ? arg.slice("--policy=".length)
+          : (() => {
+              const v = rest[i];
+              i += 1;
+              if (v === undefined) fail("--policy requires a value");
+              return v;
+            })();
+        if (!["null", "default", "materialize"].includes(value))
+          fail("--policy must be one of null|default|materialize");
+        flags.policy = value as BackfillPolicy;
+        continue;
+      }
+      if (arg.startsWith("--")) fail(`Unknown option '${arg}'`);
+      positional.push(arg);
+    }
+    if (positional.length !== 1)
+      fail("add-column takes exactly one positional: <name>=<type>");
+    const eq = positional[0]!.indexOf("=");
+    if (eq <= 0 || eq === positional[0]!.length - 1)
+      fail(`--column style name=type expected, got '${positional[0]}'`);
+    const name = positional[0]!.slice(0, eq);
+    const type = positional[0]!.slice(eq + 1);
+    if (!isDeclared(type))
+      fail(
+        `unsupported declared type '${type}' for column '${name}' (expected one of ${DECLARED_TYPES.join("|")})`,
+      );
+    return {
+      ns,
+      table,
+      op: "addColumn",
+      column: {
+        name,
+        type,
+        nullable: flags.nullable,
+        ...(flags.hasDefault ? { default: flags.defaultValue } : {}),
+      },
+      policy: flags.policy,
+    };
+  }
+
+  // retype-column: <column> <type> — materialize is implied by the coordinator.
+  if (rest.length !== 2)
+    fail("retype-column takes exactly two positionals: <column> <type>");
+  const [column, type] = rest as [string, string];
+  if (!isDeclared(type))
+    fail(
+      `unsupported declared target type '${type}' (expected one of ${DECLARED_TYPES.join("|")})`,
+    );
+  return { ns, table, op: "retypeColumn", column, type };
+}
+
+/** Run the alter op through the DDL coordinator and print the result. */
+async function runAlter(args: AlterArgs): Promise<void> {
+  const root = path.resolve(resolveNamespacesPath());
+  const options = { namespacesPath: root };
+  if (args.op === "addColumn") {
+    if (typeof args.column !== "object" || args.column === null)
+      fail("add-column requires a name=type column");
+    const result = await addColumn(
+      args.ns,
+      {
+        table: args.table,
+        column: {
+          name: args.column.name,
+          type: args.column.type as DeclaredColumnType,
+          nullable: args.column.nullable,
+          ...(args.column.default !== undefined
+            ? { default: args.column.default }
+            : {}),
+        },
+        ...(args.policy !== undefined ? { policy: args.policy } : {}),
+      },
+      options,
+    );
+    console.log(
+      `Added column '${args.column.name}' to ${args.ns}/${args.table} (schemaVersion ${result.schemaVersion}).`,
+    );
+    if (result.generation)
+      console.log(`Materialized generation: ${result.generation.path}`);
+    return;
+  }
+  const result = await retypeColumn(
+    args.ns,
+    {
+      table: args.table,
+      column: args.column,
+      type: args.type as DeclaredColumnType,
+      policy: "materialize",
+    },
+    options,
+  );
+  console.log(
+    `Retyped '${args.column}' on ${args.ns}/${args.table} to ${args.type} (schemaVersion ${result.schemaVersion}).`,
+  );
+  console.log(`Materialized generation: ${result.generation?.path}`);
 }
 
 // ---------------------------------------------------------------------------
@@ -284,9 +499,28 @@ export async function runTablesCli(argv: string[]): Promise<number> {
     printAuditKeys(audit);
     return audit.duplicateKeys === 0 ? 0 : 1;
   }
+  if (sub === "alter") {
+    // DDL-EVOLVE-001: the evolution surface. Usage failures throw
+    // TablesCliError (the bin prints them); a DDL refusal is a state-on-disk
+    // message printed here with the historical `Error: ` prefix and exit 1.
+    const args = parseAlterArgs(rest);
+    if (args === null) return 0;
+    try {
+      await runAlter(args);
+      return 0;
+    } catch (error) {
+      if (error instanceof ApiError) {
+        console.error(
+          `Error: ${error.message}${error.code ? ` (${error.code})` : ""}`,
+        );
+        return 1;
+      }
+      throw error;
+    }
+  }
   if (sub !== "declare")
     fail(
-      `Unknown tables subcommand: '${sub}' (expected: declare or audit-keys; run "duckbrain tables --help")`,
+      `Unknown tables subcommand: '${sub}' (expected: declare, alter or audit-keys; run "duckbrain tables --help")`,
     );
 
   const args = parseDeclareArgs(rest);

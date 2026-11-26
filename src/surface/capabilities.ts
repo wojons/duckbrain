@@ -280,6 +280,17 @@ export const CAPABILITIES: readonly Capability[] = [
     mcp: ["tables_declare"],
   },
   {
+    // DDL-EVOLVE-001: the safe evolution ops (addColumn / retypeColumn in
+    // src/serialization/ddl.ts) became reachable on all three surfaces, and
+    // `declare --force` on a populated table now refuses 409
+    // EVOLUTION_REQUIRED instead of silently reshaping live rows.
+    id: "table.alter",
+    summary: "Evolve a declared table (addColumn / retypeColumn; force-rescript refused)",
+    cli: { verb: "tables" },
+    http: ["POST /api/ns/:ns/tables/:table/alter"],
+    mcp: ["tables_alter"],
+  },
+  {
     id: "table.transaction",
     summary: "Atomic multi-statement transaction envelope",
     http: ["POST /api/ns/:ns/tables/_transaction"],

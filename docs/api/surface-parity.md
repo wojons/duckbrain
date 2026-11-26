@@ -29,7 +29,7 @@ test also fails when the committed block is stale.
      Do not edit by hand: `pnpm docs:surface` rewrites this block, and
      src/surface/parity.test.ts fails when it is stale. -->
 
-**66 capabilities** cover 54 HTTP routes, 24 MCP tools and 30 CLI verbs. `pending` means the surface does not implement it yet; `n/a` carries the reason it never will.
+**67 capabilities** cover 55 HTTP routes, 25 MCP tools and 30 CLI verbs. `pending` means the surface does not implement it yet; `n/a` carries the reason it never will.
 
 ### Memory records
 
@@ -76,6 +76,7 @@ test also fails when the committed block is stale.
 | `table.update` — Update rows by primary key (PATCH and PUT/:pk forms) | **pending** | `PATCH /api/ns/:ns/tables/:table`, `PUT /api/ns/:ns/tables/:table/:pk` | `table_update` |
 | `table.delete` — Delete rows from a declared table | **pending** | `DELETE /api/ns/:ns/tables/:table` | `table_delete` |
 | `table.declare` — Declare a table (`tables declare`: schema + adoption of matching files) | `tables` | `POST /api/ns/:ns/tables/:table/declare` | `tables_declare` |
+| `table.alter` — Evolve a declared table (addColumn / retypeColumn; force-rescript refused) | `tables` | `POST /api/ns/:ns/tables/:table/alter` | `tables_alter` |
 | `table.transaction` — Atomic multi-statement transaction envelope | **pending** | `POST /api/ns/:ns/tables/_transaction` | **pending** |
 
 ### Query

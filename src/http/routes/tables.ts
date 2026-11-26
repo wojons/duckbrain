@@ -14,6 +14,11 @@
  *   of the table rather than the row-insert verb (POST /:table) because that
  *   verb is the data contract: overloading it would make an insert whose
  *   columns happened to look like a declaration write schema instead of rows.
+ *   DDL-EVOLVE-001: evolution has the same treatment —
+ *   POST /api/ns/:ns/tables/:table/alter parses the body and calls the DDL
+ *   coordinator's addColumn/retypeColumn (the SAME ops the MCP tables_alter
+ *   tool and `duckbrain tables alter` call); force-declares that would
+ *   reshape a populated table are refused 409 EVOLUTION_REQUIRED.
  *   GET    /api/ns/:ns/tables/:table          — SELECT with col=op.value
  *                                              filters (eq/ne/neq/gt/gte/lt/
  *                                              lte/like/ilike/in/is/
@@ -124,6 +129,11 @@ import {
   type DeclareTableResult,
   type DeclareTableSpec,
 } from "../../tables/declare";
+import {
+  addColumn,
+  retypeColumn,
+} from "../../serialization/ddl";
+import { DECLARED_TYPES, type DeclaredColumn, type DeclaredColumnType } from "../../serialization/schemaTypes";
 
 import {
   deleteTableRows,
@@ -357,6 +367,110 @@ export function parseDeclarationBody(
     spec[flag] = record[flag] as boolean;
   }
   return spec;
+}
+
+// ---------------------------------------------------------------------------
+// DDL-EVOLVE-001 — table evolution body (addColumn / retypeColumn)
+// ---------------------------------------------------------------------------
+
+/** The transport-neutral evolution request the alter route hands to ddl.ts. */
+export type TableAlterRequest =
+  | { op: "addColumn"; column: DeclaredColumn; policy?: string }
+  | { op: "retypeColumn"; column: string; type: DeclaredColumnType };
+
+/**
+ * Parse an alter body into the addColumn/retypeColumn request.
+ *
+ * The shape mirrors the MCP `tables_alter` arguments so the two agent
+ * transports accept the same document; VALUE validation stays in the DDL
+ * coordinator. Every op the coordinator does not implement is refused here —
+ * explicitly, and never silently mapped onto one of the supported ops.
+ */
+export function parseAlterBody(
+  _ns: string,
+  _table: string,
+  body: unknown,
+): TableAlterRequest {
+  const bad = (message: string): ApiError =>
+    new ApiError(message, 400, "VALIDATION_ERROR");
+  if (typeof body !== "object" || body === null || Array.isArray(body)) {
+    throw bad(
+      "Alter body must be a JSON object: {op: 'addColumn', column: {name, type, nullable, default?}, policy?} or {op: 'retypeColumn', column, type}",
+    );
+  }
+  const record = body as Record<string, unknown>;
+  const op = record.op;
+  if (typeof op !== "string" || op.length === 0)
+    throw bad("op is required: 'addColumn' or 'retypeColumn'");
+
+  if (op === "declareView")
+    throw new ApiError(
+      "declareView is not reachable on the alter surface: declared views are not served by any route yet (DDL-EVOLVE-001 keeps them coordinator-internal)",
+      400,
+      "VIEW_UNSUPPORTED",
+    );
+  if (op !== "addColumn" && op !== "retypeColumn")
+    throw new ApiError(
+      `table evolution op '${op}' is not supported in v1 (allowed: addColumn, retypeColumn; drop/rename/key changes are refused — every other change needs a new table name)`,
+      400,
+      "OP_UNSUPPORTED",
+    );
+
+  if (op === "addColumn") {
+    const raw = record.column;
+    if (typeof raw !== "object" || raw === null || Array.isArray(raw))
+      throw bad("addColumn requires column as an object {name, type, nullable, default?}");
+    const column = raw as Record<string, unknown>;
+    if (typeof column.name !== "string" || column.name.length === 0)
+      throw bad("addColumn requires the new column's name");
+    if (
+      typeof column.type !== "string" ||
+      !(DECLARED_TYPES as readonly string[]).includes(column.type)
+    )
+      throw bad(
+        `addColumn requires a declared type for the new column (one of ${DECLARED_TYPES.join("|")})`,
+      );
+    if (typeof column.nullable !== "boolean")
+      throw bad(
+        `addColumn requires an explicit nullable flag for column '${column.name}'`,
+      );
+    const extra = Object.keys(column).filter(
+      (key) => key !== "name" && key !== "type" && key !== "nullable" && key !== "default",
+    );
+    if (extra.length > 0)
+      throw bad(`addColumn column has unknown field(s): ${extra.join(", ")}`);
+    const declared: DeclaredColumn = {
+      name: column.name,
+      type: column.type as DeclaredColumnType,
+      nullable: column.nullable,
+      ...(column.default !== undefined ? { default: column.default } : {}),
+    };
+    if (record.policy !== undefined) {
+      if (
+        typeof record.policy !== "string" ||
+        !["null", "default", "materialize"].includes(record.policy)
+      )
+        throw bad("policy must be one of null|default|materialize");
+      return { op, column: declared, policy: record.policy };
+    }
+    return { op, column: declared };
+  }
+
+  // retypeColumn
+  if (typeof record.column !== "string" || record.column.length === 0)
+    throw bad("retypeColumn requires column to be the NAME of an existing column");
+  if (
+    typeof record.type !== "string" ||
+    !(DECLARED_TYPES as readonly string[]).includes(record.type)
+  )
+    throw bad(
+      `retypeColumn requires a declared target type (one of ${DECLARED_TYPES.join("|")})`,
+    );
+  return {
+    op,
+    column: record.column,
+    type: record.type as DeclaredColumnType,
+  };
 }
 
 // ---------------------------------------------------------------------------
@@ -731,7 +845,7 @@ function declareTablePathItem(): Record<string, unknown> {
       operationId: "declare_table",
       summary: "Create or replace a table declaration",
       description:
-        "Writes through the SAME core the CLI (`duckbrain tables declare`) and the MCP `tables_declare` tool call. 201 when the declaration is new, 200 when an identical contract already existed or `force` replaced it.",
+        "Writes through the SAME core the CLI (`duckbrain tables declare`) and the MCP `tables_declare` tool call. 201 when the declaration is new, 200 when an identical contract already existed or `force` replaced it. `force` on a POPULATED table whose contract differs is refused 409 EVOLUTION_REQUIRED — use the alter route to evolve it instead.",
       parameters: [
         {
           name: "table",
@@ -753,6 +867,47 @@ function declareTablePathItem(): Record<string, unknown> {
         "201": { description: "Declared (new contract)." },
         "200": {
           description: "Idempotent re-declare, or `force` replacement.",
+        },
+        "400": apiErrorSchemaRef,
+        "403": apiErrorSchemaRef,
+        "409": apiErrorSchemaRef,
+      },
+    },
+  };
+}
+
+/**
+ * DDL-EVOLVE-001: table evolution as a sub-resource of the table. The two
+ * ops the DDL coordinator implements in v1, reachable over the network.
+ */
+function alterTablePathItem(): Record<string, unknown> {
+  return {
+    post: {
+      operationId: "alter_table",
+      summary: "Evolve a declared table (addColumn / retypeColumn)",
+      description:
+        "Runs through the SAME DDL coordinator (src/serialization/ddl.ts) the MCP `tables_alter` tool and `duckbrain tables alter` call: fenced, journaled, and materialized through immutable generations. addColumn takes {op:'addColumn', column:{name,type,nullable,default?}, policy?} (policy null|default|materialize). retypeColumn takes {op:'retypeColumn', column, type} and always materializes. Drop/rename/key-change ops and view declarations are refused 400 (OP_UNSUPPORTED / VIEW_UNSUPPORTED).",
+      parameters: [
+        {
+          name: "table",
+          in: "path",
+          required: true,
+          description: "Declared table name.",
+          schema: { type: "string", pattern: "^[a-z0-9_-]+$" },
+        },
+      ],
+      requestBody: {
+        required: true,
+        content: {
+          "application/json": {
+            schema: { $ref: "#/components/schemas/TableAlterRequest" },
+          },
+        },
+      },
+      responses: {
+        "200": {
+          description:
+            "Applied — the operation name, the resulting table schemaVersion and document hash, plus the materialized generation when the op wrote one.",
         },
         "400": apiErrorSchemaRef,
         "403": apiErrorSchemaRef,
@@ -932,6 +1087,7 @@ export function generateOpenApi(
   paths[`/api/ns/${ns}/tables/_transaction`] = transactionPathItem();
   paths[`/api/ns/${ns}/tables`] = tableListPathItem();
   paths[`/api/ns/${ns}/tables/{table}/declare`] = declareTablePathItem();
+  paths[`/api/ns/${ns}/tables/{table}/alter`] = alterTablePathItem();
 
   // These are the existing global memory routes. They intentionally keep
   // their namespace query/body semantics; the namespace in this document
@@ -1266,6 +1422,64 @@ export function generateOpenApi(
             legacy: { type: "boolean" },
             force: { type: "boolean" },
           },
+        },
+        // DDL-EVOLVE-001: the alter request — oneOf over the two v1 evolution
+        // ops the DDL coordinator implements.
+        TableAlterRequest: {
+          oneOf: [
+            {
+              type: "object",
+              required: ["op", "column"],
+              properties: {
+                op: { type: "string", const: "addColumn" },
+                column: {
+                  type: "object",
+                  required: ["name", "type", "nullable"],
+                  properties: {
+                    name: { type: "string" },
+                    type: {
+                      type: "string",
+                      enum: [
+                        "string",
+                        "int64",
+                        "float64",
+                        "boolean",
+                        "timestamp",
+                        "json",
+                        "bytes",
+                      ],
+                    },
+                    nullable: { type: "boolean" },
+                    default: {},
+                  },
+                },
+                policy: {
+                  type: "string",
+                  enum: ["null", "default", "materialize"],
+                },
+              },
+            },
+            {
+              type: "object",
+              required: ["op", "column", "type"],
+              properties: {
+                op: { type: "string", const: "retypeColumn" },
+                column: { type: "string" },
+                type: {
+                  type: "string",
+                  enum: [
+                    "string",
+                    "int64",
+                    "float64",
+                    "boolean",
+                    "timestamp",
+                    "json",
+                    "bytes",
+                  ],
+                },
+              },
+            },
+          ],
         },
       },
     },
@@ -1610,9 +1824,12 @@ function createTableRoutes(): Router {
         if (error instanceof TableDeclareError) {
           // `usage` → the request is malformed (400); `refusal` → the state on
           // disk refused a well-formed request (409). The message is the CLI's
-          // own text, so all three surfaces refuse identically.
+          // own text, so all three surfaces refuse identically, and a refusal
+          // with a specific protocol condition (DDL-EVOLVE-001
+          // EVOLUTION_REQUIRED) keeps its code instead of the generic
+          // DECLARATION_REFUSED.
           throw error.kind === "refusal"
-            ? new ApiError(error.message, 409, "DECLARATION_REFUSED")
+            ? new ApiError(error.message, 409, error.code ?? "DECLARATION_REFUSED")
             : new ApiError(error.message, 400, "INVALID_DECLARATION");
         }
         throw error;
@@ -1632,6 +1849,75 @@ function createTableRoutes(): Router {
         format: result.format,
         replacedExisting: result.replacedExisting,
         ...(declaration ? { declaration } : {}),
+      });
+    }),
+  );
+
+  /**
+   * POST /api/ns/:ns/tables/:table/alter — evolve a declared table
+   * (DDL-EVOLVE-001).
+   *
+   * addColumn and retypeColumn had NO network surface: the only writer was
+   * the DDL coordinator (src/serialization/ddl.ts) reachable from tests, so
+   * an agent's only reshape tool was `declare --force` — the exact defect
+   * this row closes (force now refuses populated tables with
+   * EVOLUTION_REQUIRED; see declareTable()). This route parses the body and
+   * calls addColumn()/retypeColumn() — the SAME coordinator the MCP
+   * `tables_alter` tool and `duckbrain tables alter` call. No second writer:
+   * the fence, journal, generation materialization and atomic schema switch
+   * are all the coordinator's.
+   *
+   * Authz mirrors the declare route: namespace write grant + per-table write
+   * grant; the coordinator itself additionally requires the SUPA-4 admin
+   * role for the namespace (authorizeDdl) — a non-admin token gets 403
+   * FORBIDDEN from the coordinator, not from this route.
+   *
+   * Body: {op:'addColumn', column:{name,type,nullable,default?}, policy?} or
+   * {op:'retypeColumn', column, type}. Every other op (drop / rename / key
+   * change / view declaration) is refused 400 — the coordinator implements
+   * exactly these two evolution ops in v1.
+   */
+  router.post(
+    "/:table/alter",
+    requireNamespaceGrant((req) => param(req, "ns")),
+    requireTableGrant(grantNs, grantTable, "write"),
+    asyncHandler(async (req: Request, res: Response) => {
+      const ns = param(req, "ns");
+      const tableName = param(req, "table");
+      const request = parseAlterBody(ns, tableName, req.body);
+      const options = { principal: getPrincipal(req) };
+      const result =
+        request.op === "addColumn"
+          ? await addColumn(
+              ns,
+              {
+                table: tableName,
+                column: request.column,
+                ...(request.policy !== undefined
+                  ? { policy: request.policy as "null" | "default" | "materialize" }
+                  : {}),
+              },
+              options,
+            )
+          : await retypeColumn(
+              ns,
+              {
+                table: tableName,
+                column: request.column,
+                type: request.type,
+                policy: "materialize",
+              },
+              options,
+            );
+      res.json({
+        ok: true,
+        operation: result.operation,
+        namespace: ns,
+        table: tableName,
+        schemaVersion: result.schemaVersion,
+        documentHash: result.documentHash,
+        ...(result.generation ? { generation: result.generation } : {}),
+        ...(result.idempotentReplay ? { idempotentReplay: true } : {}),
       });
     }),
   );
