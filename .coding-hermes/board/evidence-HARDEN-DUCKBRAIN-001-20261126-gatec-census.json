@@ -1,0 +1,314 @@
+{
+  "census": "gate (c) open P0/P1 disposition refresh",
+  "tick": "duckbrain-foreman-2026-11-26-03-29-08",
+  "generated_at_utc": "2026-11-26T03:57:49Z",
+  "head_sha": "9c233b7573251529dc9670a0f3ac9f1ad1984ce0",
+  "commands": [
+    "boardctl -C /home/kara/duckbrain direction --json",
+    "boardctl -C /home/kara/duckbrain ready --json",
+    "python3 ~/.hermes/scripts/block_drive.py /home/kara/duckbrain --top 10",
+    "python3 -c '<line-wise P0/P1 census over .coding-hermes/board/tasks.jsonl>'",
+    "gh run list --repo wojons/duckbrain --commit 9c233b7573251529dc9670a0f3ac9f1ad1984ce0 --limit 5 --json databaseId,status,conclusion,displayTitle,createdAt,headSha"
+  ],
+  "counts": {
+    "total_open_p0_p1": 34,
+    "owner_reason_recorded": 14,
+    "dispatchable_without_owner_reason": 20,
+    "blocked_status": 7,
+    "pending_status": 27,
+    "in_progress_status": 0
+  },
+  "ci_exact_head": [
+    {
+      "conclusion": "success",
+      "createdAt": "2026-11-26T03:28:56Z",
+      "databaseId": 45749183238,
+      "displayTitle": "Recall benchmark",
+      "headSha": "9c233b7573251529dc9670a0f3ac9f1ad1984ce0",
+      "status": "completed"
+    },
+    {
+      "conclusion": "success",
+      "createdAt": "2026-11-26T03:01:20Z",
+      "databaseId": 45746207648,
+      "displayTitle": "board(duckbrain): close DDL-EVOLVE-001 (judge 2cb48fb0 + task-complet…",
+      "headSha": "9c233b7573251529dc9670a0f3ac9f1ad1984ce0",
+      "status": "completed"
+    }
+  ],
+  "rows": [
+    {
+      "id": "RELEASE-2026-10-26-001",
+      "priority": "P1",
+      "status": "pending",
+      "owner_reason_recorded": true,
+      "line": 416,
+      "title": "P1 — DuckBrain v1.2.0 cut: AUTHORIZED by owner 2026-11-11 (minor cut = standing releng authority; owner gate released: 'approved on both' Oct 26 + Nov 1 decisions)"
+    },
+    {
+      "id": "QA-DUCKBRAIN-PERF-3",
+      "priority": "P1",
+      "status": "blocked",
+      "owner_reason_recorded": true,
+      "line": 440,
+      "title": "[P1] QA battery refused to launch — dispatch path is a subdirectory of parent git repo"
+    },
+    {
+      "id": "QA-DUCKBRAIN-FOREMAN-1",
+      "priority": "P1",
+      "status": "pending",
+      "owner_reason_recorded": true,
+      "line": 441,
+      "title": "P1 — Native suite ENOSPC disk capacity: OWNER DIRECTIVE 2026-11-11 — clear space on the BUNKERS and get them healthy; attach cleanup to the existing per-bunker space-management cron/thread. (Local main box also needs the sweep; tracked on HARDEN-DUCKBRAIN-002's compression process.)"
+    },
+    {
+      "id": "QA-DUCKBRAIN-FOREMAN-2",
+      "priority": "P1",
+      "status": "blocked",
+      "owner_reason_recorded": true,
+      "line": 442,
+      "title": "[P1] Chaos disconnect test blocked by disk capacity (ENOSPC)"
+    },
+    {
+      "id": "RELEASE-2026-11-01-001",
+      "priority": "P1",
+      "status": "pending",
+      "owner_reason_recorded": true,
+      "line": 450,
+      "title": "DuckBrain v1.2.0 readiness sweep 2026-11-01: authorization NOW GRANTED by owner 2026-11-11 (unblocked; sweep's other gates still apply: release surface + current GitReins verdict)"
+    },
+    {
+      "id": "HARDEN-DUCKBRAIN-001",
+      "priority": "P0",
+      "status": "pending",
+      "owner_reason_recorded": true,
+      "line": 461,
+      "title": "[P0] HARDENING LOOP (contract row) — drive DuckBrain to a stranger-proof state: reproduce every claimed boundary, fix it, prove with a control, deploy as the test"
+    },
+    {
+      "id": "HARDEN-DUCKBRAIN-002",
+      "priority": "P1",
+      "status": "blocked",
+      "owner_reason_recorded": true,
+      "line": 462,
+      "title": "P1 — Live daemon's 9.2G data dir inside a git checkout: OWNER AUTHORIZED 2026-11-11 — run the standing checkout-compression/history-squash process on the live datadir checkout (total data is small; history is the bloat). Then keep the data-dir-outside-checkout migration on this row."
+    },
+    {
+      "id": "OBSDB-007",
+      "priority": "P1",
+      "status": "blocked",
+      "owner_reason_recorded": true,
+      "line": 463,
+      "title": "P1 — Deploy /metrics: OWNER AUTHORIZED 2026-11-11 the live :3000 daemon restart to enable metrics (owner: 'you can reset the daemon so metrics get enabled'). Restart, verify /metrics serves, then wire scrape + alert rules (fleet-monitor)."
+    },
+    {
+      "id": "PERF-DUCKBRAIN-001",
+      "priority": "P1",
+      "status": "blocked",
+      "owner_reason_recorded": true,
+      "line": 466,
+      "title": "P1 — /api/memories 11% >=3s from FILE COUNT (20-29k jsonl/namespace): OWNER APPROVED the squash design — Cassandra-style tombstone compaction per the original specs: rebuild segments so file count stays bounded, reads stay fast. Automate the compaction (scheduled), don't make it a one-off."
+    },
+    {
+      "id": "PERF-DUCKBRAIN-002",
+      "priority": "P1",
+      "status": "blocked",
+      "owner_reason_recorded": true,
+      "line": 468,
+      "title": "P1 — Compact PRODUCTION namespaces (fleet-quality 29,080 files first): OWNER APPROVED 2026-11-11. Execute via the tombstone/squash process from PERF-DUCKBRAIN-001 and make it automated/recurring."
+    },
+    {
+      "id": "SEC-AUTHZ-001",
+      "priority": "P1",
+      "status": "blocked",
+      "owner_reason_recorded": true,
+      "line": 471,
+      "title": "P1 — 17/37 live tokens ADMIN via optional roles: OWNER DIRECTIVE 2026-11-11 'figure it out on your own' — design + execute token role-tightening (default least-privilege, admin audit, rotate/derogate the 17) without further owner hand-holding."
+    },
+    {
+      "id": "S3-READ-AMPLIFICATION-001",
+      "priority": "P1",
+      "status": "pending",
+      "owner_reason_recorded": true,
+      "line": 494,
+      "title": "[P1] One partition is 10,002 objects (one 46MB file plus ~10,000 three-line files) — a wildcard read over it needs ~10,000 GETs and does not finish in 5 minutes"
+    },
+    {
+      "id": "DB-3",
+      "priority": "P1",
+      "status": "pending",
+      "owner_reason_recorded": false,
+      "line": 502,
+      "title": "IMPROVE OURS - Ship session-start memory injection as installable plugins for other agents, not only the Hermes provider"
+    },
+    {
+      "id": "DB-6",
+      "priority": "P1",
+      "status": "pending",
+      "owner_reason_recorded": false,
+      "line": 507,
+      "title": "IMPROVE OURS - A key without a roles field is admin by default: 2/2 live keys are admin, 0 use table grants"
+    },
+    {
+      "id": "RELEASE-2026-11-09-001",
+      "priority": "P1",
+      "status": "pending",
+      "owner_reason_recorded": true,
+      "line": 512,
+      "title": "P1 - v1.2.0 cut prep (rolling): NO CUT at 9f2ddbee (pass 19) - product tree byte-identical to the pass-17 candidate 00ca0bc2 (every commit since is board/ledger/evidence only); tip CI green (run 43741076346 + scheduled benchmark 43798883862); npm channel still E404 with 0 Actions secrets so a tag today orphans; PERF-015 attempt 3 in flight will move the tree; re-fire 2: tip b2bd7bb1, product-identical, CI 43879570797 green"
+    },
+    {
+      "id": "S3-DR-HISTORY-001",
+      "priority": "P1",
+      "status": "pending",
+      "owner_reason_recorded": false,
+      "line": 513,
+      "title": "DR restore discards namespace git history that is already in S3 — add `s3 sync <ns> pull --with-history`"
+    },
+    {
+      "id": "S3-HISTORY-COVERAGE-001",
+      "priority": "P1",
+      "status": "pending",
+      "owner_reason_recorded": false,
+      "line": 514,
+      "title": "Git-history mirror is opt-in per namespace with a silent skip and no status surface — 38 of 238 mapped namespaces have no history, including `hermes`"
+    },
+    {
+      "id": "S3-LEDGER-COMPLETENESS-001",
+      "priority": "P1",
+      "status": "pending",
+      "owner_reason_recorded": false,
+      "line": 515,
+      "title": "A partial push publishes a completeness ledger built only from what landed, so a DR pull reports a clean restore of an incomplete backup"
+    },
+    {
+      "id": "S3-PULL-MANIFEST-GUARD-001",
+      "priority": "P1",
+      "status": "pending",
+      "owner_reason_recorded": false,
+      "line": 516,
+      "title": "Pull's only guard against overwriting newer local data is a non-atomically written local manifest — a missing or corrupt manifest silently turns pull into 'remote wins' with exit 0"
+    },
+    {
+      "id": "MCP-SQUASH-GATE-001",
+      "priority": "P1",
+      "status": "pending",
+      "owner_reason_recorded": false,
+      "line": 530,
+      "title": "MCP squash compacts the store with no admin role, no confirmation, and dryRun defaulting to false — HTTP refuses the identical call without admin + confirm"
+    },
+    {
+      "id": "CLI-TABLES-VERBS-001",
+      "priority": "P1",
+      "status": "pending",
+      "owner_reason_recorded": false,
+      "line": 531,
+      "title": "The parity matrix claims table.list on the CLI but `tables` dispatches only `declare` — and the parity test cannot see a CLI sub-verb unless the row declares a dispatcher"
+    },
+    {
+      "id": "MCP-OPS-S3-TOOLS-001",
+      "priority": "P1",
+      "status": "pending",
+      "owner_reason_recorded": false,
+      "line": 532,
+      "title": "The MCP surface has no S3 and no ops tools — an agent can squash a namespace but cannot list or clear the ghosts it creates, run a sync, prune a namespace or consolidate"
+    },
+    {
+      "id": "QUERY-HTTP-001",
+      "priority": "P1",
+      "status": "pending",
+      "owner_reason_recorded": false,
+      "line": 533,
+      "title": "`query` exists on MCP and CLI but has no HTTP route, and the raw-SQL grant middleware it needs is exported and never mounted"
+    },
+    {
+      "id": "DOCS-EXAMPLES-001",
+      "priority": "P1",
+      "status": "pending",
+      "owner_reason_recorded": false,
+      "line": 535,
+      "title": "Documented HTTP and CLI examples are never executed — add an executable claim-vs-live contract suite"
+    },
+    {
+      "id": "RELEASE-VERSION-001",
+      "priority": "P1",
+      "status": "pending",
+      "owner_reason_recorded": false,
+      "line": 537,
+      "title": "The shipped binary announces two different versions and CI pins the stale one — `--version` says 1.2.0, `help` says 1.1.0, README badge says 1.1.0"
+    },
+    {
+      "id": "REST-IDEMPOTENCY-001",
+      "priority": "P1",
+      "status": "pending",
+      "owner_reason_recorded": false,
+      "line": 567,
+      "title": "Honor Idempotency-Key on table writes: replay returns the original result, conflicting body returns 409 IDEMPOTENCY_CONFLICT, durable across restart"
+    },
+    {
+      "id": "RELEASE-2026-11-15-001",
+      "priority": "P1",
+      "status": "pending",
+      "owner_reason_recorded": false,
+      "line": 592,
+      "title": "P1 — OWNER-GATED: push a v1.2.0 tag today and the Release workflow fails AFTER the tag is public — the repo has ZERO Actions secrets, so NPM_TOKEN is absent and 'Publish package to npm' dies before the GitHub Release step runs"
+    },
+    {
+      "id": "INT-CI-039",
+      "priority": "P1",
+      "status": "pending",
+      "owner_reason_recorded": false,
+      "line": 600,
+      "title": "CI red on main: src/s3/sync-stopped-s3stop001.test.ts:191 is same-millisecond flaky (lastPushAttemptAt === lastPushAt)"
+    },
+    {
+      "id": "QA-DUCKBRAIN-042",
+      "priority": "P1",
+      "status": "pending",
+      "owner_reason_recorded": false,
+      "line": 608,
+      "title": "P1 — CLI `recall --prefix=<p>` silently returns the WHOLE namespace: the prefix never reaches the recall tool (44/44 rows vs 9 on REST and MCP)"
+    },
+    {
+      "id": "QA-DUCKBRAIN-044",
+      "priority": "P1",
+      "status": "pending",
+      "owner_reason_recorded": true,
+      "line": 612,
+      "title": "[P1] cos.initiatives read view serves 619 of 927 board cards: rows older than the active segment can never be patched again and stay invisible (all 3 off-by-one initiative cards lost)"
+    },
+    {
+      "id": "QA-DUCKBRAIN-046",
+      "priority": "P1",
+      "status": "pending",
+      "owner_reason_recorded": false,
+      "line": 614,
+      "title": "48% of the duckbrain open board is undispatchable: acceptance_gate reports 57 of 118 open rows failing (no command, no outcome, or unexpanded placeholders)"
+    },
+    {
+      "id": "INT-CI-042",
+      "priority": "P1",
+      "status": "pending",
+      "owner_reason_recorded": false,
+      "line": 622,
+      "title": "RECURRENCE of INT-CI-040: test-counts drift red since 18:30Z — 989625cb added a test case without regenerating the manifest"
+    },
+    {
+      "id": "DF-MCP-HTTP-001",
+      "priority": "P1",
+      "status": "pending",
+      "owner_reason_recorded": false,
+      "line": 626,
+      "title": "P1 — Move DuckBrain MCP from stdio to streamable-HTTP on the :3000 daemon (owner-approved 11-16): add MCP-over-HTTP endpoint to bin/duckbrain.js server startup (same tool surface as ), auth via existing x-api-key; flip Hermes config mcp_servers.duckbrain from command-wrapper form to url form; kill per-session stdio node+watchdog processes (pid 10215 pattern, one per session); verify n100 can connect over network. Do together with the live conformance bakeoff (same serving plane)."
+    },
+    {
+      "id": "INT-CI-043",
+      "priority": "P1",
+      "status": "pending",
+      "owner_reason_recorded": false,
+      "line": 629,
+      "title": "CI red on main run 45116477909 (head 5d3b5556, board-only commit; product tree identical to green run 04:58Z at fc70f922): suite-level teardown failure in src/cli/http-cors-example-app-001.test.ts — ENOTEMPTY rmdir '/tmp/cors-example-app-*/taskboard/.git/objects' under CI load; same rmdir-race class as TESTQ-2026-11-08-1."
+    }
+  ],
+  "disposition": "The loop remains pending. Owner-gated rows are not self-authorized; dispatchable rows remain feeder backlog for subsequent ticks. No production restart, release/tag, or live-data rewrite was performed."
+}

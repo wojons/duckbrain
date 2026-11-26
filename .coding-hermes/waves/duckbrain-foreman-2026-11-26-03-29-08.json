@@ -1,0 +1,29 @@
+{
+  "tick": "duckbrain-foreman-2026-11-26-03-29-08",
+  "block": "HARDEN-DUCKBRAIN-010",
+  "contract_row": "HARDEN-DUCKBRAIN-001",
+  "path": "serial-verification-only",
+  "wave_size": 0,
+  "slots": 1,
+  "workers": [],
+  "rows": {
+    "HARDEN-DUCKBRAIN-001": {
+      "outcome": "open",
+      "reason": "loop/audit contract remains pending; gate-c disposition refresh produced durable evidence, but no bounded source-code acceptance was selected",
+      "artifact": ".coding-hermes/board/evidence-HARDEN-DUCKBRAIN-001-20261126-gatec-census.json",
+      "artifact_sha256": "dc92113afce5b75c153c7db6960726dc710d7f3484d0bec413f497e1cf04d381"
+    }
+  },
+  "selection": {
+    "block_drive": "HARDEN-DUCKBRAIN-010",
+    "ready_rows": ["HARDEN-DUCKBRAIN-001"],
+    "resume_first": true,
+    "wave_budget": 3,
+    "loadavg": 39.82,
+    "nproc": 16,
+    "slots_reason": "max(1, min(6, 16-ceil(39.82))) = 1"
+  },
+  "dispatch": "none:verification-only loop/audit row; no worker or GitReins lifecycle",
+  "next": "select a bounded ready feeder row from the hardening block and dispatch it on the required worker lane",
+  "created_at_utc": "2026-11-26T03:59:00Z"
+}
