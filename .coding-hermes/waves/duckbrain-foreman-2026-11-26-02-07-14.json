@@ -1,0 +1,72 @@
+{
+  "wave_id": "duckbrain-foreman-2026-11-26-02-07-14",
+  "scheduler_tick": "duckbrain-foreman-2026-11-26-02-07-14",
+  "block": "HARDEN-DUCKBRAIN (loop driver HARDEN-DUCKBRAIN-001; product row DDL-EVOLVE-001)",
+  "path_mode": "serial-fallback",
+  "path_reason": "WAVE_BUDGET=1 hard ceiling; slots=1 (16 cores, load 16.2). Block offers one ready unit: the DDL-EVOLVE-001 partial closeout named by tick 2026-11-26-00-05-42 event 8817 (tier2-incomplete, local-suite red).",
+  "wave_budget_ceiling": 1,
+  "slots": 1,
+  "rows": [
+    {
+      "id": "DDL-EVOLVE-001",
+      "kind": "closeout-verification (no fresh worker dispatch; implementation d866f80f merged e5f3b43b, pushed, CI 45729402215 success)",
+      "worktree": "/home/kara/worktrees/duckbrain-DDL-EVOLVE-001",
+      "branch": "wt/DDL-EVOLVE-001",
+      "base_sha": "37731a9c",
+      "product_commit": "d866f80f1cd544f1fe31bfd10a7d5c4959c1cad3",
+      "worker_model": "glm-5.3-flash",
+      "worker_provider": "opencode-go-2",
+      "gitreins_task": "DDL-EVOLVE-001"
+    }
+  ],
+  "created_at": "2026-11-25T21:10:00-05:00",
+  "kind": "closeout-verification (no worker dispatch; implementation already merged by tick 2026-11-26-00-05-42)",
+  "finished_at": "2026-11-25T21:57:35.220917",
+  "merged": [
+    {
+      "row": "DDL-EVOLVE-001",
+      "implementation_commit": "d866f80f1cd544f1fe31bfd10a7d5c4959c1cad3",
+      "merge_commit": "e5f3b43b6ef1fd5628390f16b16ad5b9c550f858",
+      "pushed": "yes (by prior tick; re-verified this tick)",
+      "ci_exact_head_run": 45729402215,
+      "ci_conclusion": "success",
+      "judge_adopted": "2cb48fb0",
+      "judge_task_complete": "1fc0108c",
+      "verdict": "Overall PASS (tier1 PASS, tier2 COMPLETE)",
+      "graded_tip": "e5f3b43b"
+    }
+  ],
+  "failed_lanes": [
+    {
+      "lane": "z.ai glm-5.3-flash",
+      "error": "429 plan cap",
+      "verdict": "ec288af4"
+    },
+    {
+      "lane": "deepseek deepseek-flash (DEEPSEEK_FOREMAN_API_KEY)",
+      "error": "402 insufficient balance",
+      "verdict": "7432f51b"
+    },
+    {
+      "lane": "openrouter deepseek/deepseek-v4-flash",
+      "error": "non-JSON response, unparseable",
+      "verdict": "827b8594"
+    }
+  ],
+  "winner": {
+    "lane": "x.ai grok-4.7 (GITREINS_LLM_BASE_URL=https://api.x.ai/v1)",
+    "verdict_dirs": [
+      "2cb48fb0",
+      "1fc0108c"
+    ]
+  },
+  "local_gates": {
+    "full_suite": "307 files / 2561 tests GREEN exit 0 on merged tree",
+    "solo_durability": "20/20",
+    "merge_tree_check": "git diff d866f80f..e5f3b43b empty"
+  },
+  "advisory_rows_filed": [
+    "DDL-EVOLVE-002",
+    "DDL-EVOLVE-003"
+  ]
+}

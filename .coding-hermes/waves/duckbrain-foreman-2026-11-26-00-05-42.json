@@ -1,0 +1,24 @@
+{
+  "wave_id": "duckbrain-foreman-2026-11-26-00-05-42",
+  "scheduler_tick": "duckbrain-foreman-2026-11-26-00-05-42",
+  "block": "HARDEN-DUCKBRAIN (loop driver HARDEN-DUCKBRAIN-001; product row DDL-EVOLVE-001)",
+  "path_mode": "serial-fallback",
+  "path_reason": "slots = max(1, min(6, 16 - ceil(load1=14.34))) = 1; box loaded (load5 19.95, load15 23.72). Hosted CI is an amplifier only; local gates judge the merge.",
+  "wave_budget_ceiling": 3,
+  "slots": 1,
+  "rows": [
+    {
+      "id": "DDL-EVOLVE-001",
+      "title": "Schema evolution has no safe agent path: declare --force silently reshapes a live table while spec'd addColumn/retypeColumn ops have no HTTP/MCP/CLI surface",
+      "status_at_dispatch": "in_progress",
+      "worktree": "/home/kara/worktrees/duckbrain-DDL-EVOLVE-001",
+      "branch": "wt/DDL-EVOLVE-001",
+      "base_sha": "37731a9c",
+      "brief_path": "/tmp/duckbrain-2026-11-26-00-05-42-brief-DDL-EVOLVE-001.txt",
+      "worker_model": "glm-5.3-flash",
+      "worker_provider": "opencode-go-2",
+      "cos_ruling": "pending (proc_2f232b19d31c; plan-unreviewed stamp if spawn fails)"
+    }
+  ],
+  "created_at": "2026-11-26T00:10:00Z"
+}

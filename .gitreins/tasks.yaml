@@ -3688,3 +3688,19 @@ tasks:
     or :3000 contact.'
   status: in_progress
   created_at: '2026-11-25T08:43:36.825657+00:00'
+- id: DDL-EVOLVE-001
+  title: 'Schema evolution safe path: refuse force-redeclare on populated tables;
+    surface addColumn/retypeColumn over HTTP/MCP/CLI via the ddl.ts fence'
+  criteria:
+  - '1) declare with force on a populated table is refused (409 EVOLUTION_REQUIRED
+    naming the evolution op) unless the contract is canonical-identical, identical
+    on CLI/HTTP/MCP. 2) addColumn and retypeColumn reachable over HTTP, MCP tables_alter,
+    and CLI, implemented only through the existing ddl.ts fence/journal/materialize
+    path; drop/rename/key-change stay unsupported. 3) Tests: force-retype refused
+    + table still GET/PATCH; addColumn nullable/default leaves JSONL untouched and
+    old rows read pinned value; addColumn materialize publishes one generation; declared
+    view served by documented route or rejected as unsupported. 4) Capability matrix
+    and TABLES_DECLARE_USAGE expose the new ops; SUPA-6 status updated.'
+  status: complete
+  created_at: '2026-11-26T00:09:43.487017+00:00'
+  completed_at: '2026-11-26T02:42:33.677069+00:00'
