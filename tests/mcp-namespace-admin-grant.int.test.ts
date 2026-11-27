@@ -61,8 +61,10 @@ let home: string;
 let authFile: string;
 let namespacesPath: string;
 
-/** Scoped to `home-ns` + `second-ns` — the `--namespace=<agent>,<ns>` shape. */
+/** Admin scoped to `home-ns` + `second-ns`: role and grant are independent. */
 const scopedToken = "s".repeat(48);
+/** Writer with the same grant, used to test role denial independently. */
+const writerToken = "w".repeat(48);
 /**
  * A SECOND scoped token used for the REST comparison arms, so the denial rows
  * the REST middlewares write carry a DIFFERENT principal: the audit leg must
@@ -213,6 +215,12 @@ describe("MCP namespace-management grant parity (card t_369581ef)", () => {
           {
             keyHash: hashApiKey(scopedToken),
             name: "scoped-agent",
+            roles: ["admin"],
+            namespaces: [GRANTED, GRANTABLE],
+          },
+          {
+            keyHash: hashApiKey(writerToken),
+            name: "scoped-writer",
             roles: ["writer"],
             namespaces: [GRANTED, GRANTABLE],
           },
@@ -255,6 +263,27 @@ describe("MCP namespace-management grant parity (card t_369581ef)", () => {
     } catch {
       // Best-effort teardown — never fail the suite on cleanup.
     }
+  });
+
+  it("refuses namespace administration by a writer even inside its grant", async () => {
+    const before = await rest("GET", "/api/namespaces", adminToken);
+    expect(before.status).toBe(200);
+    expect(before.body.currentNamespace).toBe(ACTIVE);
+
+    for (const [name, args] of [
+      ["create_namespace", { name: GRANTABLE, setDefault: false }],
+      ["switch_namespace", { name: GRANTED }],
+      ["delete_namespace", { name: GRANTED, confirm: true }],
+    ] as const) {
+      const reply = await mcp("tools/call", toolCall(name, args), writerToken);
+      expect(reply.status).toBe(200);
+      expect(reply.body.result.isError).toBe(true);
+      expect(toolPayload(reply)).toMatchObject({ success: false, reason: "role", code: "ROLE" });
+    }
+    expect(fs.existsSync(path.join(namespacesPath, GRANTABLE))).toBe(false);
+    expect(fs.existsSync(path.join(namespacesPath, GRANTED))).toBe(true);
+    const after = await rest("GET", "/api/namespaces", adminToken);
+    expect(after.body.currentNamespace).toBe(ACTIVE);
   });
 
   it("refuses an MCP create of an ungranted namespace and creates nothing", async () => {

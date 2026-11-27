@@ -12,7 +12,7 @@ import {
   getMcpRequestDenialAuditor,
   getMcpRequestPrincipal,
 } from "../../cli/http";
-import { namespaceScopeDenial } from "../../auth/roles";
+import { namespaceScopeDenial, authorizeResource, authorizeTableAccess, hasAnyRole } from "../../auth/roles";
 import type {
   AuthPrincipal,
   DenialAuditEvent,
@@ -113,6 +113,23 @@ export function resolveToolDenialAuditor(
   context?: McpToolContext,
 ): DenialAuditor | undefined {
   return context?.auditDenial ?? getMcpRequestDenialAuditor();
+}
+
+/** Authorize MCP mutations before any side effect, preserving local mode. */
+export function enforceMutationRole(context: McpToolContext | undefined, namespace: string, adminOnly = false, table?: string, auditOperation?: string) {
+  const principal = resolveToolPrincipal(context);
+  const decision = table ? authorizeTableAccess(principal, namespace, table, "write") : authorizeResource(principal, namespace, "tables.write");
+  const allowed = decision.allowed && (!adminOnly || !principal || hasAnyRole(principal, ["admin"]));
+  if (allowed) return undefined;
+  const reason = decision.allowed ? "role" : decision.reason;
+  const error = decision.allowed ? `Forbidden: principal '${principal?.name}' requires admin role` : decision.message;
+  const auditor = resolveToolDenialAuditor(context);
+  if (auditor) {
+    try {
+      void Promise.resolve(auditor({ ts: new Date().toISOString(), ns: namespace, op: auditOperation ?? (adminOnly ? "compaction.squash" : "namespace.write"), principal: principal?.name ?? null, outcome: "denied", reason })).catch(() => undefined);
+    } catch { /* auditing is best effort */ }
+  }
+  return { success: false as const, reason, code: reason.toUpperCase(), error };
 }
 
 /**

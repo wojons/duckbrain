@@ -23,6 +23,7 @@ import {
   resolveNamespaceName,
   resolveNamespacePath,
   enforceNamespaceScope,
+  enforceMutationRole,
   type McpToolContext,
 } from "./shared";
 import fs from "fs";
@@ -286,6 +287,8 @@ export async function rememberTool(
     // arg is omitted) — BEFORE any directory is created or row enqueued.
     const scopeViolation = enforceNamespaceScope(context, resolvedNamespace);
     if (scopeViolation) return scopeViolation;
+    const roleViolation = enforceMutationRole(context, resolvedNamespace, false, "memories");
+    if (roleViolation) return roleViolation;
 
     // NAMESPACE-AUTOCREATE-001: namespace-creation policy for WRITES. The
     // daemon serves the fleet — many lanes write to legit namespaces over

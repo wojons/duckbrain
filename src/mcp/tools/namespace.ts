@@ -24,6 +24,7 @@ import { logLifecycle } from "../../namespaces/lifecycle";
 import { censusOnDiskNamespaces } from "../../namespaces/census";
 import {
   enforceNamespaceScope,
+  enforceMutationRole,
   resolveToolPrincipal,
   type McpToolContext,
 } from "./shared";
@@ -163,6 +164,8 @@ export async function createNamespaceTool(
     // directory or config write — and audits the refusal (SUPA-4).
     const scopeViolation = enforceNamespaceScope(context, input.name);
     if (scopeViolation) return scopeViolation;
+    const roleViolation = enforceMutationRole(context, input.name, true, undefined, "namespace.write");
+    if (roleViolation) return roleViolation;
 
     // GAP-062: the namespace root comes from the config file's own directory,
     // never the caller's cwd — a create from an unrelated checkout must not
@@ -378,6 +381,8 @@ export async function switchNamespaceTool(
     // audited before the config is touched (SUPA-4).
     const scopeViolation = enforceNamespaceScope(context, input.name);
     if (scopeViolation) return scopeViolation;
+    const roleViolation = enforceMutationRole(context, input.name, true, undefined, "namespace.write");
+    if (roleViolation) return roleViolation;
 
     const config = getConfig(".");
     const previous = config.defaultNamespace;
@@ -464,6 +469,16 @@ export async function deleteNamespaceTool(
         error: scopeViolation.error,
       });
       return scopeViolation;
+    }
+
+    const roleViolation = enforceMutationRole(context, input.name, true, undefined, "namespace.write");
+    if (roleViolation) {
+      logLifecycle(resolveNamespacesPath(), {
+        op: "delete-from-disk", surface: "mcp", ns: input.name,
+        requestedBy: input.requestedBy?.trim() || "operator", reason: input.reason ?? "",
+        success: false, error: roleViolation.error,
+      });
+      return roleViolation;
     }
 
     const result = deleteNamespace(input.name, input.confirm);
