@@ -695,7 +695,7 @@ export function createHttpServer(options: HttpServerOptions = {}): Express {
       "Access-Control-Allow-Headers",
       // REST-RANGE-001: `Range` is NOT a CORS-safelisted request header, so a
       // browser `.range()` fetch preflights unless it is listed here.
-      "Content-Type, Authorization, X-API-Key, Last-Event-ID, Accept, Range",
+      "Content-Type, Authorization, X-API-Key, Last-Event-ID, Accept, Range, MCP-Protocol-Version, X-DuckBrain-Profiles",
     );
     // Response headers a browser app must be able to READ, not merely receive.
     res.setHeader(
