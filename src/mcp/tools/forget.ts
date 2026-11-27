@@ -13,6 +13,7 @@ import {
   resolveNamespaceName,
   resolveNamespacePath,
   enforceNamespaceScope,
+  enforceMutationRole,
   resolveToolPrincipal,
   type McpToolContext,
 } from "./shared";
@@ -124,6 +125,8 @@ export async function forgetTool(
     const principal = resolveToolPrincipal(context);
     const scopeViolation = enforceNamespaceScope(context, resolvedNamespace);
     if (scopeViolation) return scopeViolation;
+    const roleViolation = enforceMutationRole(context, resolvedNamespace, false, "memories");
+    if (roleViolation) return roleViolation;
 
     // Check if namespace exists
     if (!fs.existsSync(namespacePath)) {

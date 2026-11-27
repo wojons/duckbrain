@@ -15,6 +15,7 @@ import {
   resolveNamespaceName,
   resolveNamespacePath,
   enforceNamespaceScope,
+  enforceMutationRole,
   type McpToolContext,
 } from "./shared";
 import path from "path";
@@ -112,6 +113,9 @@ export async function squashTool(
         errors: [scopeViolation.error],
       };
     }
+
+    const roleViolation = enforceMutationRole(context, resolveNamespaceName(namespace), true);
+    if (roleViolation) return { ...roleViolation, message: roleViolation.error, errors: [roleViolation.error] };
 
     // If specific partition provided, squash it directly
     if (partition) {
