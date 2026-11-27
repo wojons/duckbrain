@@ -18,6 +18,7 @@ import {
   resolveNamespaceName,
   resolveNamespacePath,
   enforceNamespaceScope,
+  enforceMemoryRead,
   type McpToolContext,
 } from "./shared";
 import { EmbeddingCache } from "../../embedding/cache";
@@ -622,6 +623,12 @@ async function recallToolImpl(
       namespace: resolvedNamespace,
       ...scopeViolation,
     };
+  }
+
+  // The memory table grant is global to the principal, including union reads.
+  const readViolation = enforceMemoryRead(context, resolvedNamespace);
+  if (readViolation) {
+    return { memories: [], count: 0, namespace: resolvedNamespace, ...readViolation };
   }
 
   // Check if namespace exists (skipped for RETR-007 all-namespaces unions —

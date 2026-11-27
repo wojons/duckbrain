@@ -12,7 +12,7 @@ import {
   getMcpRequestDenialAuditor,
   getMcpRequestPrincipal,
 } from "../../cli/http";
-import { namespaceScopeDenial } from "../../auth/roles";
+import { authorizeTableAccess, namespaceScopeDenial } from "../../auth/roles";
 import type {
   AuthPrincipal,
   DenialAuditEvent,
@@ -258,6 +258,23 @@ export function auditTableGrantDenial(
   } catch {
     // Auditing is best-effort and never changes a denial response.
   }
+}
+
+/** Enforce the same memory-table read policy as REST, after namespace scope. */
+export function enforceMemoryRead(
+  context: McpToolContext | undefined,
+  namespace: string,
+) {
+  const principal = resolveToolPrincipal(context);
+  const decision = authorizeTableAccess(principal, namespace, "memories", "read");
+  if (decision.allowed) return undefined;
+  auditTableGrantDenial(context, namespace, "memories", "read", principal, decision.reason);
+  return {
+    success: false as const,
+    code: "FORBIDDEN",
+    reason: decision.reason,
+    error: decision.message,
+  };
 }
 
 /**

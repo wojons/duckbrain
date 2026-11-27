@@ -11,7 +11,7 @@ import { asyncHandler, ApiError } from "../middleware/errorHandler";
 import { KeyTreeResponse } from "../types/api";
 import { buildKeyTree } from "../../utils/keyTree";
 import { resolveNamespaceName } from "../../mcp/tools/shared";
-import { requireNamespaceGrant } from "../../auth/middleware";
+import { requireNamespaceGrant, requireTableGrant } from "../../auth/middleware";
 
 const router: Router = Router();
 
@@ -30,6 +30,7 @@ const resolveRequestNamespace = (req: Request): string =>
 // `namespace_scope`. Untouched in auth=none mode and for unrestricted tokens
 // (`namespaces` absent).
 router.use(requireNamespaceGrant(resolveRequestNamespace));
+router.use(requireTableGrant(resolveRequestNamespace, () => "memories", "read"));
 
 /**
  * GET /api/keys
