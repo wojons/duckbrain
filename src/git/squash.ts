@@ -22,6 +22,42 @@ import {
   namespacePathForPartition,
 } from "../keys/keyListCache";
 
+/** Resolve existing paths physically as well as lexically; a symlink must not
+ * turn an authorized namespace into access to a different namespace. */
+export function resolvePartition(
+  namespacePath: string,
+  partition: string,
+): string {
+  const root = fs.realpathSync(namespacePath);
+  const candidate = path.resolve(namespacePath, partition);
+  const inside = (base: string, target: string): boolean => {
+    const relative = path.relative(base, target);
+    return (
+      relative !== "" &&
+      relative !== ".." &&
+      !relative.startsWith(`..${path.sep}`) &&
+      !path.isAbsolute(relative)
+    );
+  };
+  if (!inside(path.resolve(namespacePath), candidate)) {
+    throw new Error("Partition must be inside the selected namespace");
+  }
+  const resolved = fs.realpathSync(candidate);
+  if (!inside(root, resolved)) {
+    throw new Error("Partition must be inside the selected namespace");
+  }
+  // squashPartition reads every JSONL entry, including symlinks.
+  for (const entry of fs.readdirSync(resolved)) {
+    if (
+      entry.endsWith(".jsonl") &&
+      !inside(root, fs.realpathSync(path.join(resolved, entry)))
+    ) {
+      throw new Error("Partition files must be inside the selected namespace");
+    }
+  }
+  return resolved;
+}
+
 /**
  * Squash operation options
  */
@@ -308,7 +344,16 @@ export async function compactHistory(options: {
 
   // Find old partitions
   for (const partitionRelPath of manifest.partitions) {
-    const partitionPath = path.join(namespacePath, partitionRelPath);
+    if (!fs.existsSync(path.resolve(namespacePath, partitionRelPath))) continue;
+    let partitionPath: string;
+    try {
+      partitionPath = resolvePartition(namespacePath, partitionRelPath);
+    } catch (err) {
+      errors.push(
+        `${partitionRelPath}: ${err instanceof Error ? err.message : "Invalid partition"}`,
+      );
+      continue;
+    }
 
     if (!fs.existsSync(partitionPath)) {
       continue;

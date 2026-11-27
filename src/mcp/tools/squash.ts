@@ -10,6 +10,7 @@ import {
   squashPartition,
   compactHistory,
   getCompactionStats,
+  resolvePartition,
 } from "../../git/squash";
 import {
   resolveNamespaceName,
@@ -17,8 +18,6 @@ import {
   enforceNamespaceScope,
   type McpToolContext,
 } from "./shared";
-import path from "path";
-
 /**
  * Input schema for squash tool
  */
@@ -116,9 +115,7 @@ export async function squashTool(
     // If specific partition provided, squash it directly
     if (partition) {
       const namespacePath = resolveNamespacePath(namespace);
-      const partitionPath = path.isAbsolute(partition)
-        ? partition
-        : path.join(namespacePath, partition);
+      const partitionPath = resolvePartition(namespacePath, partition);
 
       const result = await squashPartition(partitionPath, {
         dryRun,
