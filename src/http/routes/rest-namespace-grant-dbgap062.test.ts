@@ -81,6 +81,7 @@ const AUTH_CONFIG = {
   auditDenial: AUDIT,
   apiKeys: [
     { key: "unrestricted-key", name: "unrestricted-agent" },
+    { key: "no-memory-read-key", name: "no-memory-reader", roles: ["writer" as const], tableGrants: { memories: "write" as const } },
     { key: "scoped-a-key", name: "scoped-agent", namespaces: ["a"] },
     { key: "scoped-ab-key", name: "scoped-ab-agent", namespaces: ["a", "b"] },
     {
@@ -244,6 +245,14 @@ describe("DB-GAP-062: /api/keys enforces namespace grants", () => {
       nextOffset: null,
       prefixes: {},
     } as any);
+  });
+
+  it.each(["/api/keys?namespace=a", "/api/keys/flat?namespace=a"])("denies memory read without grant on %s", async (url) => {
+    const { status, body } = await httpRequest(port, "GET", url, { headers: { "X-API-Key": "no-memory-read-key" } });
+    expect(status).toBe(403);
+    expect(body.code).toBe("FORBIDDEN");
+    expect(mockedListKeysTool).not.toHaveBeenCalled();
+    expect(AUDIT).toHaveBeenCalledWith(expect.objectContaining({ ns: "a", table: "memories", op: "tables.read", reason: "table_grant" }));
   });
 
   it("refuses a scoped token reading an ungranted namespace (403 + audited namespace_scope)", async () => {

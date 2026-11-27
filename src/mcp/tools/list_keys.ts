@@ -16,6 +16,7 @@ import {
   resolveNamespacePath,
   resolveNamespaceName,
   enforceNamespaceScope,
+  enforceMemoryRead,
   type McpToolContext,
 } from "./shared";
 import path from "path";
@@ -388,6 +389,11 @@ export async function listKeysTool(
       prefixes: {},
       ...scopeViolation,
     };
+  }
+
+  const readViolation = enforceMemoryRead(context, resolveNamespaceName(validated.namespace));
+  if (readViolation) {
+    return { keys: [], hasMore: false, nextOffset: null, prefixes: {}, ...readViolation };
   }
 
   try {
