@@ -15,7 +15,9 @@ beforeAll(async () => {
 });
 
 describe("memory read grant enforcement", () => {
-  it.each([{}, { memories: "write" as const }])("denies recall and keys with non-read grants %o", async (grants) => {
+  const nonReadGrants: NonNullable<AuthPrincipal["tableGrants"]>[] = [{}, { memories: "write" }];
+
+  it.each(nonReadGrants)("denies recall and keys with non-read grants %o", async (grants) => {
     const audit: unknown[] = [];
     const context = { principal: actor(grants), auditDenial: (event: unknown) => { audit.push(event); } };
     for (const input of [{ namespace: ns }, { namespace: ns, key: "/secret/key" }, { namespace: ns, contains: "secret" }, { contains: "secret", allNamespaces: true }]) {
