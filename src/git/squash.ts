@@ -15,12 +15,48 @@ import { safeJsonStringify } from "../utils/serialize";
 import { getManifest, type Manifest } from "../storage/manifest";
 import { getDuckDBConnection } from "../duckdb/connection";
 import { READ_JSON_COLUMNS } from "../duckdb/queries";
-import { execSync } from "child_process";
+import { execFileSync } from "child_process";
 import { compareChunkNames } from "../storage/jsonl";
 import {
   invalidateKeysCache,
   namespacePathForPartition,
 } from "../keys/keyListCache";
+
+/** Resolve existing paths physically as well as lexically; a symlink must not
+ * turn an authorized namespace into access to a different namespace. */
+export function resolvePartition(
+  namespacePath: string,
+  partition: string,
+): string {
+  const root = fs.realpathSync(namespacePath);
+  const candidate = path.resolve(namespacePath, partition);
+  const inside = (base: string, target: string): boolean => {
+    const relative = path.relative(base, target);
+    return (
+      relative !== "" &&
+      relative !== ".." &&
+      !relative.startsWith(`..${path.sep}`) &&
+      !path.isAbsolute(relative)
+    );
+  };
+  if (!inside(path.resolve(namespacePath), candidate)) {
+    throw new Error("Partition must be inside the selected namespace");
+  }
+  const resolved = fs.realpathSync(candidate);
+  if (!inside(root, resolved)) {
+    throw new Error("Partition must be inside the selected namespace");
+  }
+  // squashPartition reads every JSONL entry, including symlinks.
+  for (const entry of fs.readdirSync(resolved)) {
+    if (
+      entry.endsWith(".jsonl") &&
+      !inside(root, fs.realpathSync(path.join(resolved, entry)))
+    ) {
+      throw new Error("Partition files must be inside the selected namespace");
+    }
+  }
+  return resolved;
+}
 
 /**
  * Squash operation options
@@ -308,7 +344,16 @@ export async function compactHistory(options: {
 
   // Find old partitions
   for (const partitionRelPath of manifest.partitions) {
-    const partitionPath = path.join(namespacePath, partitionRelPath);
+    if (!fs.existsSync(path.resolve(namespacePath, partitionRelPath))) continue;
+    let partitionPath: string;
+    try {
+      partitionPath = resolvePartition(namespacePath, partitionRelPath);
+    } catch (err) {
+      errors.push(
+        `${partitionRelPath}: ${err instanceof Error ? err.message : "Invalid partition"}`,
+      );
+      continue;
+    }
 
     if (!fs.existsSync(partitionPath)) {
       continue;
@@ -629,23 +674,23 @@ export async function getCompactionStats(
  */
 function squashGitHistory(partitionPath: string): void {
   try {
-    // Check if we're in a git repository
-    execSync("git rev-parse --git-dir", { stdio: "pipe" });
-
-    // Get relative path from git root
-    const gitRoot = execSync("git rev-parse --show-toplevel", {
+    // Resolve and inspect the partition's repository, not the caller's cwd.
+    const gitRoot = execFileSync("git", ["rev-parse", "--show-toplevel"], {
+      cwd: partitionPath,
       encoding: "utf-8",
+      stdio: ["ignore", "pipe", "pipe"],
     }).trim();
     const relativePath = path.relative(gitRoot, partitionPath);
 
-    // Squash commits touching this path into a single commit
-    // Using git rebase with --autosquash
-    const commitCount = execSync(
-      `git log --oneline --follow -- "${relativePath}" | wc -l`,
-      { encoding: "utf-8" },
+    // Pass the literal path as one argument; never interpolate it into a shell.
+    const commits = execFileSync(
+      "git",
+      ["--literal-pathspecs", "log", "--format=%H", "--follow", "--", relativePath],
+      { cwd: gitRoot, encoding: "utf-8", stdio: ["ignore", "pipe", "pipe"] },
     ).trim();
+    const commitCount = commits ? commits.split("\n").length : 0;
 
-    if (parseInt(commitCount) > 1) {
+    if (commitCount > 1) {
       // Could use interactive rebase, but that's complex
       // For now, just log that squashing would be beneficial
       console.log(
