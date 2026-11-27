@@ -143,6 +143,45 @@ describe("EXAMPLE-APP-001 CORS: a cross-origin app can drive the table API", () 
     expect(allowed).toContain("content-type");
   });
 
+  it("allows browser MCP preflight headers without bypassing authentication", async () => {
+    const requested = [
+      "content-type", "authorization", "x-api-key", "mcp-protocol-version",
+      "x-duckbrain-profiles",
+    ];
+    const reply = await preflight("/mcp", requested.join(","), "POST");
+    expect(reply.status).toBe(204);
+    expect(reply.headers.get("access-control-allow-origin")).toBe("*");
+    const methods = (reply.headers.get("access-control-allow-methods") ?? "")
+      .split(",").map((v) => v.trim().toLowerCase());
+    expect(methods).toContain("post");
+    const allowed = (reply.headers.get("access-control-allow-headers") ?? "")
+      .split(",").map((v) => v.trim().toLowerCase());
+    for (const header of requested) expect(allowed).toContain(header);
+
+    const init = {
+      jsonrpc: "2.0", id: 1, method: "initialize",
+      params: {
+        protocolVersion: "2025-03-26", capabilities: {},
+        clientInfo: { name: "cors-test", version: "1" },
+      },
+    };
+    const headers = {
+      Origin: ORIGIN, Host: "localhost", "Content-Type": "application/json",
+      Accept: "application/json, text/event-stream", "MCP-Protocol-Version": "2025-03-26",
+      "X-DuckBrain-Profiles": "default",
+    };
+    const post = (extraHeaders: Record<string, string> = {}) => fetch(`${base}/mcp`, {
+      method: "POST", headers: { ...headers, ...extraHeaders }, body: JSON.stringify(init),
+    });
+    const denied = await post();
+    expect(denied.status).toBe(401);
+    expect(denied.headers.get("access-control-allow-origin")).toBe("*");
+    expect((await post({ "X-API-Key": "invalid" })).status).toBe(401);
+    const authenticated = await post({ "X-API-Key": ADMIN_KEY });
+    expect(authenticated.status).toBe(200);
+    expect((await authenticated.json()).result.serverInfo).toBeDefined();
+  });
+
   it("does not authenticate anything: the same write without a key is still refused", async () => {
     const reply = await send("POST", `/api/ns/${NS}/tables/cards`, {
       Origin: ORIGIN,
