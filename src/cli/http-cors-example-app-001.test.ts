@@ -179,7 +179,8 @@ describe("EXAMPLE-APP-001 CORS: a cross-origin app can drive the table API", () 
     expect((await post({ "X-API-Key": "invalid" })).status).toBe(401);
     const authenticated = await post({ "X-API-Key": ADMIN_KEY });
     expect(authenticated.status).toBe(200);
-    expect((await authenticated.json()).result.serverInfo).toBeDefined();
+    const body = await authenticated.json() as { result: { serverInfo: unknown } };
+    expect(body.result.serverInfo).toBeDefined();
   });
 
   it("does not authenticate anything: the same write without a key is still refused", async () => {
