@@ -64,7 +64,7 @@ const SCOPED: AuthPrincipal = {
   name: "scopeprobe",
   authenticated: true,
   tokenType: "apikey",
-  roles: ["writer"],
+  roles: ["admin"],
   namespaces: ["default", "writable", "deletable"],
 };
 

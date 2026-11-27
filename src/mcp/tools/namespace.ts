@@ -164,7 +164,7 @@ export async function createNamespaceTool(
     // directory or config write — and audits the refusal (SUPA-4).
     const scopeViolation = enforceNamespaceScope(context, input.name);
     if (scopeViolation) return scopeViolation;
-    const roleViolation = enforceMutationRole(context, input.name);
+    const roleViolation = enforceMutationRole(context, input.name, true, undefined, "namespace.write");
     if (roleViolation) return roleViolation;
 
     // GAP-062: the namespace root comes from the config file's own directory,
@@ -381,6 +381,8 @@ export async function switchNamespaceTool(
     // audited before the config is touched (SUPA-4).
     const scopeViolation = enforceNamespaceScope(context, input.name);
     if (scopeViolation) return scopeViolation;
+    const roleViolation = enforceMutationRole(context, input.name, true, undefined, "namespace.write");
+    if (roleViolation) return roleViolation;
 
     const config = getConfig(".");
     const previous = config.defaultNamespace;
@@ -469,7 +471,7 @@ export async function deleteNamespaceTool(
       return scopeViolation;
     }
 
-    const roleViolation = enforceMutationRole(context, input.name);
+    const roleViolation = enforceMutationRole(context, input.name, true, undefined, "namespace.write");
     if (roleViolation) {
       logLifecycle(resolveNamespacesPath(), {
         op: "delete-from-disk", surface: "mcp", ns: input.name,

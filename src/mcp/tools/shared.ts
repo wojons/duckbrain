@@ -116,7 +116,7 @@ export function resolveToolDenialAuditor(
 }
 
 /** Authorize MCP mutations before any side effect, preserving local mode. */
-export function enforceMutationRole(context: McpToolContext | undefined, namespace: string, adminOnly = false, table?: string) {
+export function enforceMutationRole(context: McpToolContext | undefined, namespace: string, adminOnly = false, table?: string, auditOperation?: string) {
   const principal = resolveToolPrincipal(context);
   const decision = table ? authorizeTableAccess(principal, namespace, table, "write") : authorizeResource(principal, namespace, "tables.write");
   const allowed = decision.allowed && (!adminOnly || !principal || hasAnyRole(principal, ["admin"]));
@@ -126,7 +126,7 @@ export function enforceMutationRole(context: McpToolContext | undefined, namespa
   const auditor = resolveToolDenialAuditor(context);
   if (auditor) {
     try {
-      void Promise.resolve(auditor({ ts: new Date().toISOString(), ns: namespace, op: adminOnly ? "compaction.squash" : "namespace.write", principal: principal?.name ?? null, outcome: "denied", reason })).catch(() => undefined);
+      void Promise.resolve(auditor({ ts: new Date().toISOString(), ns: namespace, op: auditOperation ?? (adminOnly ? "compaction.squash" : "namespace.write"), principal: principal?.name ?? null, outcome: "denied", reason })).catch(() => undefined);
     } catch { /* auditing is best effort */ }
   }
   return { success: false as const, reason, code: reason.toUpperCase(), error };

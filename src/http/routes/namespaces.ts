@@ -19,7 +19,7 @@ import { resolveNamespacesPath } from "../../config/index";
 import { censusOnDiskNamespaces } from "./namespace-census";
 import { asyncHandler, ApiError } from "../middleware/errorHandler";
 import { NamespaceListResponse, NamespaceResponse } from "../types/api";
-import { requireNamespaceGrant, getPrincipal } from "../../auth/middleware";
+import { requireNamespaceGrant, requireRole, getPrincipal } from "../../auth/middleware";
 
 const router: Router = Router();
 
@@ -203,6 +203,7 @@ router.post(
   requireNamespaceGrant(
     (req) => (req.body as { name?: string } | undefined)?.name ?? "",
   ),
+  requireRole("admin"),
   asyncHandler(async (req: Request, res: Response) => {
     const { name, setDefault } = req.body;
 
@@ -247,6 +248,10 @@ router.post(
  */
 router.post(
   "/switch",
+  requireNamespaceGrant(
+    (req) => (req.body as { name?: string } | undefined)?.name ?? "",
+  ),
+  requireRole("admin"),
   asyncHandler(async (req: Request, res: Response) => {
     const { name } = req.body;
 
@@ -292,6 +297,7 @@ router.delete(
     const param: unknown = req.params.name;
     return Array.isArray(param) ? param.join("/") : String(param ?? "");
   }),
+  requireRole("admin"),
   asyncHandler(async (req: Request, res: Response) => {
     // Express 5 types named params as string | string[] (GAP-002 pattern);
     // `/:name` is a single segment, so this is always a plain string.

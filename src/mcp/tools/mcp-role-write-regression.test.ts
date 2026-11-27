@@ -1,4 +1,5 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, beforeEach, afterEach } from "vitest";
+import os from "os";
 import fs from "fs";
 import path from "path";
 import { createNamespaceTool, deleteNamespaceTool } from "./namespace";
@@ -9,6 +10,25 @@ import type { AuthPrincipal, DenialAuditEvent } from "../../auth/middleware";
 import { resolveNamespacesPath } from "../../config/index";
 
 const analyst: AuthPrincipal = { name: "analyst", authenticated: true, tokenType: "apikey", roles: ["analyst"], namespaces: ["role-test-existing", "role-test-new"] };
+
+let root: string;
+let previousRoot: string | undefined;
+let previousConfig: string | undefined;
+beforeEach(() => {
+  root = fs.mkdtempSync(path.join(os.tmpdir(), "duckbrain-role-test-"));
+  previousRoot = process.env.DUCKBRAIN_NAMESPACES_PATH;
+  previousConfig = process.env.DUCKBRAIN_CONFIG_PATH;
+  process.env.DUCKBRAIN_NAMESPACES_PATH = path.join(root, "namespaces");
+  process.env.DUCKBRAIN_CONFIG_PATH = path.join(root, "duckbrain.config.json");
+  fs.mkdirSync(process.env.DUCKBRAIN_NAMESPACES_PATH);
+});
+afterEach(() => {
+  if (previousRoot === undefined) delete process.env.DUCKBRAIN_NAMESPACES_PATH;
+  else process.env.DUCKBRAIN_NAMESPACES_PATH = previousRoot;
+  if (previousConfig === undefined) delete process.env.DUCKBRAIN_CONFIG_PATH;
+  else process.env.DUCKBRAIN_CONFIG_PATH = previousConfig;
+  fs.rmSync(root, { recursive: true, force: true });
+});
 
 describe("MCP write role enforcement", () => {
   it("refuses namespace creation and deletion before filesystem mutation", async () => {
